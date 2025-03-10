@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8081:8080"
+    networks:
+      - promptmaster_network
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8080:8080"
+    networks:
+      - promptmaster_network
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/promptmaster_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: my-secret-pw
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: my-secret-pw
+      MYSQL_DATABASE: promptmaster_db
+    networks:
+      - promptmaster_network
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+networks:
+  promptmaster_network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    driver: local
