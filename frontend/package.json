@@ -15,9 +15,14 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.7.2",
+    "@heroicons/vue": "^2.2.0",
     "pinia": "^3.0.1",
+    "simple-icons": "^14.10.0",
+    "tailwindcss-animate": "^1.0.7",
     "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue-router": "^4.5.0",
+    "webfontloader": "^1.6.28"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.1",
@@ -38,6 +43,7 @@
     "npm-run-all2": "^7.0.2",
     "prettier": "^3.5.1",
     "typescript": "~5.7.3",
+    "unocss": "^66.1.0-beta.5",
     "vite": "^6.1.0",
     "vite-plugin-vue-devtools": "^7.7.2",
     "vitest": "^3.0.5",
