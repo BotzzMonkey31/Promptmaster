@@ -24,10 +24,10 @@ jobs:
 
     - name: Build and push Docker image to Azure Container Registry
       run: |
-        docker build -t promptmasterregistry.azurecr.io/promptmaster-backend:latest ./backend
-        docker build -t promptmasterregistry.azurecr.io/promptmaster-frontend:latest ./frontend
-        docker push promptmasterregistry.azurecr.io/promptmaster-backend:latest
-        docker push promptmasterregistry.azurecr.io/promptmaster-frontend:latest
+        docker build -t promptmasterregistry.azurecr.io/backend:latest ./backend
+        docker build -t promptmasterregistry.azurecr.io/frontend:latest ./frontend
+        docker push promptmasterregistry.azurecr.io/backend:latest
+        docker push promptmasterregistry.azurecr.io/frontend:latest
 
     - name: Azure CLI Setup
       uses: azure/setup-azurecli@v1
@@ -42,7 +42,7 @@ jobs:
         az containerapp update \
           --name promptmaster-frontend \
           --resource-group ISNL_AIGame_EnriqueB \
-          --image promptmasterregistry.azurecr.io/promptmaster-frontend:latest \
+          --image promptmasterregistry.azurecr.io/frontend:latest \
           --cpu 1 --memory 2Gi \
           --ingress 'external' \
           --target-port 8081
@@ -50,7 +50,7 @@ jobs:
         az containerapp update \
           --name promptmaster-backend \
           --resource-group ISNL_AIGame_EnriqueB \
-          --image promptmasterregistry.azurecr.io/promptmaster-backend:latest \
+          --image promptmasterregistry.azurecr.io/backend:latest \
           --cpu 1 --memory 2Gi \
           --ingress 'external' \
           --target-port 8080
