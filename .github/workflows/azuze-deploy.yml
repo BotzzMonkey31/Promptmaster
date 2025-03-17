@@ -29,13 +29,11 @@ jobs:
         docker push promptmasterregistry.azurecr.io/backend:latest
         docker push promptmasterregistry.azurecr.io/frontend:latest
 
-    - name: Azure CLI Setup
-      uses: azure/setup-azurecli@v1
-
-    - name: Login to Azure CLI
-      uses: azure/cli-action@v1
+    - name: Log in to Azure CLI using Personal Azure Account
+      uses: azure/login@v1
       with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        username: ${{ secrets.AZURE_USERNAME }}
+        password: ${{ secrets.AZURE_PASSWORD }}
 
     - name: Deploy to Azure Container Apps
       run: |
