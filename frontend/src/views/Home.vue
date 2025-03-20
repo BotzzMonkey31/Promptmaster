@@ -1,24 +1,5 @@
 <template>
   <div class="bg-gray-100 min-h-screen">
-    <header class="bg-white shadow p-4 flex justify-between items-center">
-      <h1 class="text-xl font-semibold">Promptmaster</h1>
-      <nav>
-        <ul class="flex space-x-8 list-none">
-          <li><a href="#" class="text-gray-600">Puzzles</a></li>
-          <li><a href="#" class="text-gray-600">VS</a></li>
-          <li><a href="#" class="text-gray-600">Ranking</a></li>
-          <li><a href="#" class="text-gray-600">Community</a></li>
-          <li><a href="#" class="text-gray-600">Contact</a></li>
-          <li><a href="#" class="text-gray-600">About</a></li>
-        </ul>
-      </nav>
-      <div class="flex space-x-4">
-        <i class="fas fa-bell text-gray-600"></i>
-        <i class="fas fa-cog text-gray-600"></i>
-        <i class="fas fa-user-circle text-gray-600"></i>
-      </div>
-    </header>
-
     <main class="container mx-auto py-8">
       <h2 class="text-2xl font-semibold text-center mb-6">Our puzzles</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -27,9 +8,11 @@
           :key="puzzle.title"
           class="bg-white p-6 shadow rounded-lg justify-center items-center"
         >
-          <div class="bg-gray-300 w-full h-32 flex items-center justify-center text-gray-600">
-            300 × 200
-          </div>
+          <img
+            src="https://picsum.photos/300/200"
+            alt="Puzzle image"
+            class="w-full h-32 object-cover"
+          />
           <h3 class="text-lg font-semibold mt-4">{{ puzzle.title }}</h3>
           <p class="text-gray-600 mt-2">{{ puzzle.description }}</p>
         </div>
@@ -52,17 +35,6 @@
         </ul>
       </div>
     </main>
-
-    <footer class="bg-black text-white text-center p-4 mt-10">
-      <p>&copy; 2025 EBSS. All rights reserved.</p>
-      <div class="flex justify-center space-x-4 mt-2">
-        <i class="fab fa-youtube"></i>
-        <i class="fab fa-facebook"></i>
-        <i class="fab fa-twitter"></i>
-        <i class="fab fa-instagram"></i>
-        <i class="fab fa-linkedin"></i>
-      </div>
-    </footer>
   </div>
 </template>
 

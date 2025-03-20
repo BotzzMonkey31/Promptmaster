@@ -1,9 +1,10 @@
 import { fileURLToPath, URL } from 'node:url'
-
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import UnoCSS from 'unocss/vite'
+import fs from 'fs'
+import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,6 +12,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'vue3-facebook-login': 'vue3-facebook-login/dist/FacebookLogin.umd.js',
+    },
+  },
+  server: {
+    https: {
+      key: fs.readFileSync(path.resolve(__dirname, 'certs/key.pem')),
+      cert: fs.readFileSync(path.resolve(__dirname, 'certs/cert.pem')),
     },
   },
 })
