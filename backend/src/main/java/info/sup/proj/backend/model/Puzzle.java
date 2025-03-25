@@ -6,7 +6,7 @@ public class Puzzle {
     private String type;
     private String difficulty;
 
-    public Puzzle(String name, String description, String type, String difficulty) {
+    public Puzzle(String name, String difficulty, String type, String description) {
         this.name = name;
         this.description = description;
         this.type = type;

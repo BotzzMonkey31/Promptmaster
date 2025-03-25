@@ -9,7 +9,6 @@
       "@/*": ["./src/*"]
     },
 
-    "typeRoots": ["node_modules/@types", "src/types"],
-    "types": ["facebook"]
+    "typeRoots": ["node_modules/@types", "src/types"]
   }
 }
