@@ -1,8 +1,8 @@
 <template>
-  <div class="bg-black text-white min-h-screen">
+  <div class="min-h-screen bg-gray-50">
     <div class="max-w-5xl mx-auto py-10 px-4">
       <!-- Puzzle Card -->
-      <div class="bg-white text-black rounded-lg p-8 mb-6">
+      <div class="bg-white rounded-lg p-8 mb-6 shadow-md">
         <div class="mb-4">
           <h1 class="text-3xl font-bold mb-2">Puzzle: {{ puzzle.name }}</h1>
           <div class="flex gap-2 mb-4">
@@ -10,7 +10,7 @@
               :class="typeClass(puzzle.type)"
               class="px-3 py-1 text-white rounded-full text-sm font-medium"
             >
-              {{ puzzle.type }}
+              {{ formatType(puzzle.type) }}
             </span>
             <span
               :class="difficultyClass(puzzle.difficulty)"
@@ -43,6 +43,7 @@
         </div>
 
         <button
+          @click="startSolving"
           class="px-6 py-3 bg-gradient-to-r from-green-400 to-blue-500 text-white font-medium rounded-full hover:opacity-90 transition-all"
         >
           Start Solving
@@ -50,16 +51,21 @@
       </div>
 
       <!-- Previous Solutions -->
-      <div class="bg-white text-black rounded-lg p-8">
+      <div class="bg-white rounded-lg p-8 shadow-md">
         <h2 class="text-2xl font-bold mb-6">Previous Solutions</h2>
 
-        <div
-          v-for="(solution, index) in solutions"
-          :key="`solution-${index}`"
-          :class="{ 'border-b pb-4 mb-4': index !== solutions.length - 1 }"
-        >
-          <h3 class="text-xl font-bold mb-1">Solution by {{ solution.author }}</h3>
-          <p class="text-gray-600">{{ solution.description }}</p>
+        <div v-if="solutions.length">
+          <div
+            v-for="(solution, index) in solutions"
+            :key="`solution-${index}`"
+            :class="{ 'border-b pb-4 mb-4': index !== solutions.length - 1 }"
+          >
+            <h3 class="text-xl font-bold mb-1">Solution by {{ solution.author }}</h3>
+            <p class="text-gray-600">{{ solution.description }}</p>
+          </div>
+        </div>
+        <div v-else class="text-gray-600">
+          No solutions found for this puzzle yet.
         </div>
       </div>
     </div>
@@ -69,12 +75,14 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
 import axios from 'axios'
+import { useRouter } from 'vue-router'
 
 export default defineComponent({
   name: 'PuzzleDetail',
   data() {
     return {
       puzzle: {
+        id: 0,
         name: '',
         type: '',
         difficulty: '',
@@ -96,20 +104,22 @@ export default defineComponent({
       )
     },
     typeClass(type: string) {
-      const normalizedType = type.toUpperCase()
+      if (!type) return 'bg-gray-500'
 
-      // Debug logging to help troubleshoot
-      console.log('Original type:', type)
-      console.log('Normalized type:', normalizedType)
-
-      return (
-        {
-          'BY-PASS': 'bg-black',
-          BYPASS: 'bg-black',
-          FAULTY: 'bg-blue-900',
-          'MULTI-STEP': 'bg-blue-400',
-        }[normalizedType] || 'bg-gray-500'
-      )
+      return {
+        'BY_PASS': 'bg-black',
+        Faulty: 'bg-blue-900',
+        'Multi_Step': 'bg-blue-400',
+      }[type] || 'bg-gray-500'
+    },
+    formatType(type: string) {
+      if (type === 'BY_PASS') return 'Bypass'
+      if (type === 'Multi_Step') return 'Multi-Step'
+      return type // Return as is for other values like 'Faulty'
+    },
+    startSolving() {
+      // Navigate to the puzzle solver page
+      this.$router.push(`/solve/${this.puzzle.id}`)
     },
     async fetchPuzzleDetails() {
       try {
@@ -129,13 +139,10 @@ export default defineComponent({
       }
     },
     loadInstructionsAndTips() {
-      // In a real application, these would come from your API based on puzzle type
-      // For this example, we'll use hardcoded data based on the puzzle type
+      // Determine which type we're dealing with
+      const typeKey = this.puzzle.type.toUpperCase().replace('-', '_')
 
-      if (
-        this.puzzle.type.toUpperCase() === 'BYPASS' ||
-        this.puzzle.type.toUpperCase() === 'BY-PASS'
-      ) {
+      if (typeKey === 'BY_PASS' || typeKey === 'BYPASS') {
         this.instructions = [
           "Try to be smart about your prompt --> don't just think like a developer",
           'Look at the responses from the LLM. Maybe you making a obvious mistake',
@@ -147,7 +154,7 @@ export default defineComponent({
           'Use conditional statements to determine when to print "Fizz", "Buzz", or "FizzBuzz".',
           'Consider edge cases such as negative numbers or non-integer inputs.',
         ]
-      } else if (this.puzzle.type.toUpperCase() === 'FAULTY') {
+      } else if (typeKey === 'FAULTY') {
         this.instructions = [
           'Identify the issue in the provided code',
           "Fix only what's necessary without rewriting everything",
@@ -159,7 +166,7 @@ export default defineComponent({
           'Check edge cases where the code might fail',
           'Consider optimization opportunities',
         ]
-      } else if (this.puzzle.type.toUpperCase() === 'MULTI-STEP') {
+      } else if (typeKey === 'MULTI_STEP') {
         this.instructions = [
           'Break down the problem into manageable parts',
           'Solve each step before moving to the next',

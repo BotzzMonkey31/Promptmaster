@@ -46,6 +46,7 @@
     >
       <div
         v-for="puzzle in paginatedPuzzles"
+        @click="navigateToPuzzle(puzzle.id)"
         :key="puzzle.name"
         class="p-6 border rounded-2xl shadow-md bg-gray-50"
       >
@@ -164,6 +165,9 @@ export default {
         this.currentPage--
       }
     },
+    navigateToPuzzle(id: number) {
+    this.$router.push(`/puzzle/${id}`);
+  },
     difficultyClass(difficulty: string) {
       const styles: Record<string, string> = {
         Easy: 'bg-green-600',
