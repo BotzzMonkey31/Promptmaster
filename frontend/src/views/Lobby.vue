@@ -52,8 +52,8 @@
           </div>
         </div>
       </div>
+      <ChatBox />
     </main>
-    <ChatBox />
   </div>
 </template>
 

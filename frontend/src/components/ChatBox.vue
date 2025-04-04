@@ -9,15 +9,41 @@
     </div>
 
     <div v-show="isOpen" class="bg-white border border-gray-200 border-t-0 rounded-b-lg shadow-lg">
-      <div ref="messagesContainer" class="h-96 overflow-y-auto p-4 space-y-2">
-        <div v-for="(message, index) in messages" :key="index" class="flex flex-col">
-          <div class="flex items-start gap-2">
-            <img :src="message.userPicture" class="w-6 h-6 rounded-full" alt="User avatar" />
+      <div ref="messagesContainer" class="h-96 overflow-y-auto p-4 space-y-3">
+        <div
+          v-for="(message, index) in messages"
+          :key="index"
+          class="flex"
+          :class="message.isSelf ? 'justify-end' : 'justify-start'"
+        >
+          <div class="flex max-w-[80%]">
+            <template v-if="!message.isSelf">
+              <img
+                :src="message.userPicture || defaultAvatar"
+                class="w-10 h-10 rounded-full mr-2 flex-shrink-0"
+                alt="User avatar"
+                @error="handleImageError($event)"
+              />
+            </template>
+
             <div>
-              <span class="text-xs text-gray-600">{{ message.username }}</span>
-              <p class="bg-gray-100 rounded-lg p-2 inline-block">
+              <div
+                class="p-2 rounded-lg mb-1"
+                :class="
+                  message.isSelf ? 'bg-blue-500 text-white self-end' : 'bg-gray-100 text-black'
+                "
+              >
                 {{ message.content }}
-              </p>
+              </div>
+              <div
+                class="text-xs text-gray-500 flex"
+                :class="message.isSelf ? 'justify-end' : 'justify-start'"
+              >
+                <template v-if="!message.isSelf">
+                  <span class="mr-2">{{ message.username }}</span>
+                </template>
+                <span>{{ formatTimestamp(message.timestamp) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -45,11 +71,14 @@
 </template>
 
 <script lang="ts">
+import Cookies from 'js-cookie'
+
 interface ChatMessage {
   username: string
   userPicture: string
   content: string
   timestamp: Date
+  isSelf: boolean
 }
 
 export default {
@@ -61,9 +90,22 @@ export default {
       newMessage: '',
       unreadCount: 0,
       socket: null as WebSocket | null,
+      currentUser: {} as { name: string; picture: string },
+      defaultAvatar: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
     }
   },
   methods: {
+    handleImageError(event: Event) {
+      console.log('Image failed to load, using default avatar')
+      const target = event.target as HTMLImageElement
+      target.src = this.defaultAvatar
+    },
+    formatTimestamp(date: Date): string {
+      return new Intl.DateTimeFormat('en', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date)
+    },
     toggleChat() {
       this.isOpen = !this.isOpen
       if (this.isOpen) {
@@ -72,31 +114,40 @@ export default {
     },
     async sendMessage() {
       if (!this.newMessage.trim() || !this.socket) return
-
-      const userData = JSON.parse(localStorage.getItem('user') || '{}')
+      this.currentUser = JSON.parse(Cookies.get('user'))
       const message = {
         type: 'CHAT',
         content: this.newMessage.trim(),
-        username: userData.name,
-        userPicture: userData.picture,
+        username: this.currentUser.name,
+        userPicture: this.currentUser.picture,
       }
 
       this.socket.send(JSON.stringify(message))
+
       this.newMessage = ''
+
+      this.$nextTick(() => {
+        const container = this.$refs.messagesContainer as HTMLElement
+        container.scrollTop = container.scrollHeight
+      })
     },
     initWebSocket() {
       this.socket = new WebSocket('ws://localhost:8080/chat')
 
       this.socket.onmessage = (event) => {
         const message = JSON.parse(event.data)
+
+        const isSelf = message.username === this.currentUser.name
+
         this.messages.push({
           username: message.username,
           userPicture: message.userPicture,
           content: message.content,
           timestamp: new Date(),
+          isSelf: isSelf,
         })
 
-        if (!this.isOpen) {
+        if (!this.isOpen && !isSelf) {
           this.unreadCount++
         }
 
@@ -108,7 +159,7 @@ export default {
 
       this.socket.onclose = () => {
         console.log('WebSocket connection closed')
-        setTimeout(() => this.initWebSocket(), 5000) // Reconnect after 5 seconds
+        setTimeout(() => this.initWebSocket(), 5000)
       }
     },
   },

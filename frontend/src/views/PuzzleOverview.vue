@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 bg-white rounded-2xl shadow-xl w-full mx-auto">
+  <div class="max-w-10xl mx-auto p-6 bg-white rounded-2xl shadow-xl">
     <h1 class="text-4xl font-bold text-gray-800 mb-6 text-center">Available Puzzles</h1>
     <p class="text-gray-500 text-center mb-6">
       Select a puzzle below and challenge yourself with AI-powered solutions!
@@ -25,7 +25,7 @@
         class="px-4 py-3 border rounded-full w-1/3 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <option value="">Select Type</option>
-        <option value="BY-PASS">BY-PASS</option>
+        <option value="Bypass">Bypass</option>
         <option value="Faulty">Faulty</option>
         <option value="Multi-Step">Multi-Step</option>
       </select>
@@ -46,10 +46,10 @@
     >
       <div
         v-for="puzzle in paginatedPuzzles"
+        @click="navigateToPuzzle(puzzle.id)"
         :key="puzzle.name"
         class="p-6 border rounded-2xl shadow-md bg-gray-50"
       >
-        <!-- Name and Tags -->
         <div class="flex items-center space-x-2 mb-2">
           <h2 class="text-2xl font-semibold text-gray-800">{{ puzzle.name }}</h2>
           <span
@@ -59,14 +59,12 @@
             {{ puzzle.difficulty }}
           </span>
           <span :class="typeClass(puzzle.type)" class="px-3 py-1 rounded-full text-white text-sm">
-            {{ puzzle.type }}
+            {{ formatType(puzzle.type) }}
           </span>
         </div>
 
-        <!-- Description -->
         <p class="text-gray-600 mt-2">{{ puzzle.description }}</p>
 
-        <!-- Solve Button -->
         <button
           class="mt-4 px-6 py-3 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all"
         >
@@ -99,6 +97,7 @@
 import axios from 'axios'
 
 interface Puzzle {
+  id: number
   name: string
   difficulty: string
   type: string
@@ -119,12 +118,17 @@ export default {
   },
   computed: {
     filteredPuzzles() {
-      return this.puzzles.filter(
-        (puzzle) =>
-          puzzle.name.toLowerCase().includes(this.searchQuery.toLowerCase()) &&
-          (this.selectedType === '' || puzzle.type === this.selectedType) &&
-          (this.selectedDifficulty === '' || puzzle.difficulty === this.selectedDifficulty),
-      )
+      return this.puzzles.filter((puzzle) => {
+        const nameMatch = puzzle.name.toLowerCase().includes(this.searchQuery.toLowerCase())
+
+        const typeMatch = this.selectedType === '' ||
+                         puzzle.type === this.typeDisplayToValue(this.selectedType)
+
+        const difficultyMatch =
+          this.selectedDifficulty === '' || puzzle.difficulty === this.selectedDifficulty
+
+        return nameMatch && typeMatch && difficultyMatch
+      })
     },
     paginatedPuzzles() {
       const start = (this.currentPage - 1) * this.itemsPerPage
@@ -138,7 +142,15 @@ export default {
     async fetchPuzzles() {
       try {
         const response = await axios.get('http://localhost:8080/puzzles')
-        this.puzzles = response.data
+
+        // Store the data as-is without normalization
+        this.puzzles = response.data.map((puzzle) => {
+          return {
+            ...puzzle,
+          }
+        })
+
+        return response
       } catch (error) {
         console.error('Error fetching puzzles:', error)
       }
@@ -153,36 +165,43 @@ export default {
         this.currentPage--
       }
     },
+    navigateToPuzzle(id: number) {
+    this.$router.push(`/puzzle/${id}`);
+  },
     difficultyClass(difficulty: string) {
-      return (
-        {
-          Easy: 'bg-green-600',
-          Medium: 'bg-yellow-500',
-          Hard: 'bg-red-600',
-        }[difficulty] || 'bg-gray-500'
-      )
-    },
-    typeClass(type: string) {
-      console.log('Original type:', type) // Debug original value
-
-      // Convert spaces to hyphens and uppercase
-      const normalizedType = type.toUpperCase().replace(/ /g, '-')
-      console.log('Normalized type:', normalizedType) // Debug normalized value
-
       const styles: Record<string, string> = {
-        'BY-PASS': 'bg-black',
-        FAULTY: 'bg-blue-900',
-        'MULTI-STEP': 'bg-blue-400',
+        Easy: 'bg-green-600',
+        Medium: 'bg-yellow-500',
+        Hard: 'bg-red-600',
       }
 
-      console.log('Available styles:', Object.keys(styles)) // Debug available keys
-      console.log('Selected style:', styles[normalizedType] || 'bg-gray-500') // Debug selected style
+      return styles[difficulty] || 'bg-gray-500'
+    },
+    typeClass(type: string) {
+      if (!type) return 'bg-gray-500'
+      const styles: Record<string, string> = {
+        'BY_PASS': 'bg-black',
+        Faulty: 'bg-blue-900',
+        'Multi_Step': 'bg-blue-400',
+      }
 
-      return styles[normalizedType] || 'bg-gray-500'
+      return styles[type] || 'bg-gray-500'
+    },
+    formatType(type: string) {
+      if (type === 'BY_PASS') return 'Bypass'
+      if (type === 'Multi_Step') return 'Multi-Step'
+      return type // Return as is for other values like 'Faulty'
+    },
+    typeDisplayToValue(displayType: string) {
+      if (displayType === 'Bypass') return 'BY_PASS'
+      if (displayType === 'Multi-Step') return 'Multi_Step'
+      return displayType
     },
   },
   mounted() {
-    this.fetchPuzzles()
+    this.fetchPuzzles().then(() => {
+      console.log('Received puzzles:', this.puzzles)
+    })
   },
 }
 </script>
