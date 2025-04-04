@@ -71,23 +71,21 @@ defineOptions({
 import { ref, onMounted } from 'vue'
 import { GoogleSignInButton, type CredentialResponse } from 'vue3-google-signin'
 import Cookies from 'js-cookie'
+import { useRouter } from 'vue-router'
 
-// Component state
+const router = useRouter()
 const dropdownOpen = ref<boolean>(false)
 const user = ref<any>(null)
 const status = ref<string>('')
 
-// Toggle dropdown menu
 const toggleDropdown = () => {
   dropdownOpen.value = !dropdownOpen.value
 }
 
-// Handle successful Google login
 const handleLoginSuccess = (response: CredentialResponse) => {
   const { credential } = response
   console.log('Access Token', credential)
 
-  // Decode the JWT token to get user info
   const decoded = JSON.parse(atob(credential.split('.')[1]))
   const userData = {
     name: decoded.name,
@@ -95,25 +93,23 @@ const handleLoginSuccess = (response: CredentialResponse) => {
     email: decoded.email,
   }
 
-  // Save user data and credential in cookies
-  Cookies.set('user', JSON.stringify(userData), { expires: 7 }) // Expires in 7 days
+  Cookies.set('user', JSON.stringify(userData), { expires: 7 })
   Cookies.set('googleCredential', credential, { expires: 7 })
 
   user.value = userData
   status.value = `Logged in as ${decoded.name}`
   console.log('User info:', decoded)
+
+  router.push('/signup')
 }
 
-// Handle login error
 const handleLoginError = () => {
   console.error('Login failed')
   status.value = 'Login failed'
 }
 
-// Handle logout
 const logout = () => {
   console.log('Logging out...')
-  // Remove cookies
   Cookies.remove('user')
   Cookies.remove('googleCredential')
 
@@ -122,7 +118,6 @@ const logout = () => {
   dropdownOpen.value = false
 }
 
-// Check for existing login on component mount
 onMounted(() => {
   const savedUser = Cookies.get('user')
   if (savedUser) {
@@ -131,7 +126,6 @@ onMounted(() => {
       status.value = `Logged in as ${user.value.name}`
     } catch (error) {
       console.error('Error parsing saved user data:', error)
-      // If there's an error parsing the cookie, clear it
       Cookies.remove('user')
       Cookies.remove('googleCredential')
     }

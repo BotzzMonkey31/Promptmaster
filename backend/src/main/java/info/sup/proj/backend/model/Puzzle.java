@@ -68,6 +68,9 @@ public class Puzzle {
     @Enumerated(EnumType.STRING)
     private Difficulty difficulty;
 
+    public Puzzle() {
+    }
+
     public Puzzle(String name, Difficulty difficulty, Type type, String description) {
         this.name = name;
         this.description = description;

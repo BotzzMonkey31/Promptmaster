@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 bg-white rounded-2xl shadow-xl w-full mx-auto">
+  <div class="max-w-10xl mx-auto p-6 bg-white rounded-2xl shadow-xl">
     <h1 class="text-4xl font-bold text-gray-800 mb-6 text-center">Available Puzzles</h1>
     <p class="text-gray-500 text-center mb-6">
       Select a puzzle below and challenge yourself with AI-powered solutions!
@@ -25,7 +25,7 @@
         class="px-4 py-3 border rounded-full w-1/3 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <option value="">Select Type</option>
-        <option value="BY-PASS">BY-PASS</option>
+        <option value="Bypass">Bypass</option>
         <option value="Faulty">Faulty</option>
         <option value="Multi-Step">Multi-Step</option>
       </select>
@@ -49,7 +49,6 @@
         :key="puzzle.name"
         class="p-6 border rounded-2xl shadow-md bg-gray-50"
       >
-        <!-- Name and Tags -->
         <div class="flex items-center space-x-2 mb-2">
           <h2 class="text-2xl font-semibold text-gray-800">{{ puzzle.name }}</h2>
           <span
@@ -59,14 +58,12 @@
             {{ puzzle.difficulty }}
           </span>
           <span :class="typeClass(puzzle.type)" class="px-3 py-1 rounded-full text-white text-sm">
-            {{ puzzle.type }}
+            {{ formatType(puzzle.type) }}
           </span>
         </div>
 
-        <!-- Description -->
         <p class="text-gray-600 mt-2">{{ puzzle.description }}</p>
 
-        <!-- Solve Button -->
         <button
           class="mt-4 px-6 py-3 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all"
         >
@@ -99,6 +96,7 @@
 import axios from 'axios'
 
 interface Puzzle {
+  id: number
   name: string
   difficulty: string
   type: string
@@ -120,23 +118,13 @@ export default {
   computed: {
     filteredPuzzles() {
       return this.puzzles.filter((puzzle) => {
-        // For name filtering (case insensitive)
         const nameMatch = puzzle.name.toLowerCase().includes(this.searchQuery.toLowerCase())
 
-        // For type filtering - exact match with case sensitivity
-        const typeMatch = this.selectedType === '' || puzzle.type === this.selectedType
+        const typeMatch = this.selectedType === '' ||
+                         puzzle.type === this.typeDisplayToValue(this.selectedType)
 
-        // For difficulty filtering - exact match with case sensitivity
         const difficultyMatch =
           this.selectedDifficulty === '' || puzzle.difficulty === this.selectedDifficulty
-
-        if (this.selectedType !== '' || this.selectedDifficulty !== '') {
-          console.log(`Puzzle: ${puzzle.name}, Type: ${puzzle.type}, Match: ${typeMatch}`)
-          console.log(`Selected Type: ${this.selectedType}, Match: ${typeMatch}`)
-          console.log(
-            `Difficulty: ${puzzle.difficulty}, Selected: ${this.selectedDifficulty}, Match: ${difficultyMatch}`,
-          )
-        }
 
         return nameMatch && typeMatch && difficultyMatch
       })
@@ -177,7 +165,6 @@ export default {
       }
     },
     difficultyClass(difficulty: string) {
-      // Case-sensitive mapping for difficulty classes
       const styles: Record<string, string> = {
         Easy: 'bg-green-600',
         Medium: 'bg-yellow-500',
@@ -188,47 +175,28 @@ export default {
     },
     typeClass(type: string) {
       if (!type) return 'bg-gray-500'
-
-      // Case-sensitive mapping for type classes
       const styles: Record<string, string> = {
-        'BY-PASS': 'bg-black',
+        'BY_PASS': 'bg-black',
         Faulty: 'bg-blue-900',
-        'Multi-Step': 'bg-blue-400',
+        'Multi_Step': 'bg-blue-400',
       }
 
       return styles[type] || 'bg-gray-500'
     },
-    logFilterStatus() {
-      if (this.puzzles.length > 0) {
-        const puzzle = this.puzzles[0]
-        console.log('Example puzzle:', puzzle)
-        console.log('Type class:', this.typeClass(puzzle.type))
-        console.log('Difficulty class:', this.difficultyClass(puzzle.difficulty))
-
-        // Check if we're getting matching
-        console.log(
-          'Type filter would match:',
-          puzzle.type === this.selectedType || this.selectedType === '',
-        )
-        console.log(
-          'Difficulty filter would match:',
-          puzzle.difficulty === this.selectedDifficulty || this.selectedDifficulty === '',
-        )
-      }
+    formatType(type: string) {
+      if (type === 'BY_PASS') return 'Bypass'
+      if (type === 'Multi_Step') return 'Multi-Step'
+      return type // Return as is for other values like 'Faulty'
+    },
+    typeDisplayToValue(displayType: string) {
+      if (displayType === 'Bypass') return 'BY_PASS'
+      if (displayType === 'Multi-Step') return 'Multi_Step'
+      return displayType
     },
   },
   mounted() {
     this.fetchPuzzles().then(() => {
       console.log('Received puzzles:', this.puzzles)
-
-      if (this.puzzles.length > 0) {
-        console.log('Sample values from first puzzle:')
-        console.log('- Type:', JSON.stringify(this.puzzles[0].type))
-        console.log('- Difficulty:', JSON.stringify(this.puzzles[0].difficulty))
-
-        // Call our debug method
-        this.logFilterStatus()
-      }
     })
   },
 }
