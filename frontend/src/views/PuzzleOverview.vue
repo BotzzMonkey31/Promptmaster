@@ -119,12 +119,27 @@ export default {
   },
   computed: {
     filteredPuzzles() {
-      return this.puzzles.filter(
-        (puzzle) =>
-          puzzle.name.toLowerCase().includes(this.searchQuery.toLowerCase()) &&
-          (this.selectedType === '' || puzzle.type === this.selectedType) &&
-          (this.selectedDifficulty === '' || puzzle.difficulty === this.selectedDifficulty),
-      )
+      return this.puzzles.filter((puzzle) => {
+        // For name filtering (case insensitive)
+        const nameMatch = puzzle.name.toLowerCase().includes(this.searchQuery.toLowerCase())
+
+        // For type filtering - exact match with case sensitivity
+        const typeMatch = this.selectedType === '' || puzzle.type === this.selectedType
+
+        // For difficulty filtering - exact match with case sensitivity
+        const difficultyMatch =
+          this.selectedDifficulty === '' || puzzle.difficulty === this.selectedDifficulty
+
+        if (this.selectedType !== '' || this.selectedDifficulty !== '') {
+          console.log(`Puzzle: ${puzzle.name}, Type: ${puzzle.type}, Match: ${typeMatch}`)
+          console.log(`Selected Type: ${this.selectedType}, Match: ${typeMatch}`)
+          console.log(
+            `Difficulty: ${puzzle.difficulty}, Selected: ${this.selectedDifficulty}, Match: ${difficultyMatch}`,
+          )
+        }
+
+        return nameMatch && typeMatch && difficultyMatch
+      })
     },
     paginatedPuzzles() {
       const start = (this.currentPage - 1) * this.itemsPerPage
@@ -138,7 +153,15 @@ export default {
     async fetchPuzzles() {
       try {
         const response = await axios.get('http://localhost:8080/puzzles')
-        this.puzzles = response.data
+
+        // Store the data as-is without normalization
+        this.puzzles = response.data.map((puzzle) => {
+          return {
+            ...puzzle,
+          }
+        })
+
+        return response
       } catch (error) {
         console.error('Error fetching puzzles:', error)
       }
@@ -154,35 +177,59 @@ export default {
       }
     },
     difficultyClass(difficulty: string) {
-      return (
-        {
-          Easy: 'bg-green-600',
-          Medium: 'bg-yellow-500',
-          Hard: 'bg-red-600',
-        }[difficulty] || 'bg-gray-500'
-      )
-    },
-    typeClass(type: string) {
-      console.log('Original type:', type) // Debug original value
-
-      // Convert spaces to hyphens and uppercase
-      const normalizedType = type.toUpperCase().replace(/ /g, '-')
-      console.log('Normalized type:', normalizedType) // Debug normalized value
-
+      // Case-sensitive mapping for difficulty classes
       const styles: Record<string, string> = {
-        'BY-PASS': 'bg-black',
-        FAULTY: 'bg-blue-900',
-        'MULTI-STEP': 'bg-blue-400',
+        Easy: 'bg-green-600',
+        Medium: 'bg-yellow-500',
+        Hard: 'bg-red-600',
       }
 
-      console.log('Available styles:', Object.keys(styles)) // Debug available keys
-      console.log('Selected style:', styles[normalizedType] || 'bg-gray-500') // Debug selected style
+      return styles[difficulty] || 'bg-gray-500'
+    },
+    typeClass(type: string) {
+      if (!type) return 'bg-gray-500'
 
-      return styles[normalizedType] || 'bg-gray-500'
+      // Case-sensitive mapping for type classes
+      const styles: Record<string, string> = {
+        'BY-PASS': 'bg-black',
+        Faulty: 'bg-blue-900',
+        'Multi-Step': 'bg-blue-400',
+      }
+
+      return styles[type] || 'bg-gray-500'
+    },
+    logFilterStatus() {
+      if (this.puzzles.length > 0) {
+        const puzzle = this.puzzles[0]
+        console.log('Example puzzle:', puzzle)
+        console.log('Type class:', this.typeClass(puzzle.type))
+        console.log('Difficulty class:', this.difficultyClass(puzzle.difficulty))
+
+        // Check if we're getting matching
+        console.log(
+          'Type filter would match:',
+          puzzle.type === this.selectedType || this.selectedType === '',
+        )
+        console.log(
+          'Difficulty filter would match:',
+          puzzle.difficulty === this.selectedDifficulty || this.selectedDifficulty === '',
+        )
+      }
     },
   },
   mounted() {
-    this.fetchPuzzles()
+    this.fetchPuzzles().then(() => {
+      console.log('Received puzzles:', this.puzzles)
+
+      if (this.puzzles.length > 0) {
+        console.log('Sample values from first puzzle:')
+        console.log('- Type:', JSON.stringify(this.puzzles[0].type))
+        console.log('- Difficulty:', JSON.stringify(this.puzzles[0].difficulty))
+
+        // Call our debug method
+        this.logFilterStatus()
+      }
+    })
   },
 }
 </script>

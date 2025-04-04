@@ -4,13 +4,33 @@
       <h1 class="text-xl font-semibold text-black">Promptmaster</h1>
     </a>
     <nav>
-      <ul class="flex space-x-6 list-none p-0">
-        <li><a href="/puzzle" class="text-gray-600">Puzzles</a></li>
-        <li><a href="/vs" class="text-gray-600">VS</a></li>
-        <li><a href="#" class="text-gray-600">Ranking</a></li>
-        <li><a href="#" class="text-gray-600">Community</a></li>
-        <li><a href="#" class="text-gray-600">Contact</a></li>
-        <li><a href="#" class="text-gray-600">About</a></li>
+      <ul class="flex space-x-2 list-none p-0">
+        <li>
+          <a href="/puzzle" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
+            >Puzzles</a
+          >
+        </li>
+        <li>
+          <a href="/vs" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">VS</a>
+        </li>
+        <li>
+          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
+            >Ranking</a
+          >
+        </li>
+        <li>
+          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
+            >Community</a
+          >
+        </li>
+        <li>
+          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
+            >Contact</a
+          >
+        </li>
+        <li>
+          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">About</a>
+        </li>
       </ul>
     </nav>
     <div class="flex space-x-4 items-center relative">
