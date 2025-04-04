@@ -5,7 +5,6 @@ import info.sup.proj.backend.exceptions.UserAlreadyExistsException;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.model.UserRegistrationDto;
 import info.sup.proj.backend.repositories.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +15,6 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    @Autowired
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }

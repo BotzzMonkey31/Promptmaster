@@ -1,7 +1,6 @@
 package info.sup.proj.backend.model;
 
 import lombok.Data;
-import lombok.Getter;
 
 @Data
 public class UserRegistrationDto {
