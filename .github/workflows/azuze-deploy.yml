@@ -53,20 +53,28 @@ jobs:
         docker push promptmasterregistry.azurecr.io/backend:latest
         docker push promptmasterregistry.azurecr.io/frontend:latest
 
-    - name: Deploy to Azure Container Apps
-      run: |
-        az containerapp update \
-          --name promptmaster-frontend \
-          --resource-group ISNL_AIGame_EnriqueB \
-          --image promptmasterregistry.azurecr.io/frontend:latest \
-          --cpu 1 --memory 2Gi \
-          --ingress 'external' \
-          --target-port 8081
-        
-        az containerapp update \
-          --name promptmaster-backend \
-          --resource-group ISNL_AIGame_EnriqueB \
-          --image promptmasterregistry.azurecr.io/backend:latest \
-          --cpu 1 --memory 2Gi \
-          --ingress 'external' \
-          --target-port 8080
+        - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp update \
+            --name promptmaster-frontend \
+            --resource-group ISNL_AIGame_EnriqueB \
+            --image promptmasterregistry.azurecr.io/frontend:latest \
+            --cpu 1 --memory 2Gi
+            
+          az containerapp ingress update \
+            --name promptmaster-frontend \
+            --resource-group ISNL_AIGame_EnriqueB \
+            --type external \
+            --target-port 8081
+          
+          az containerapp update \
+            --name promptmaster-backend \
+            --resource-group ISNL_AIGame_EnriqueB \
+            --image promptmasterregistry.azurecr.io/backend:latest \
+            --cpu 1 --memory 2Gi
+            
+          az containerapp ingress update \
+            --name promptmaster-backend \
+            --resource-group ISNL_AIGame_EnriqueB \
+            --type external \
+            --target-port 8080
