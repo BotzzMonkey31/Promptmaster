@@ -144,7 +144,7 @@ export default {
         const response = await axios.get('http://localhost:8080/puzzles')
 
         // Store the data as-is without normalization
-        this.puzzles = response.data.map((puzzle) => {
+        this.puzzles = response.data.map((puzzle: Puzzle) => {
           return {
             ...puzzle,
           }
