@@ -11,12 +11,6 @@ jobs:
     environment: azure-deploy
     
     steps:
-    - name: Check for secrets
-      run: |
-        if [ -n "${{ secrets.AZURE_CLIENT_ID }}" ]; then echo "AZURE_CLIENT_ID is set"; else echo "AZURE_CLIENT_ID is missing"; fi
-        if [ -n "${{ secrets.AZURE_TENANT_ID }}" ]; then echo "AZURE_TENANT_ID is set"; else echo "AZURE_TENANT_ID is missing"; fi
-        if [ -n "${{ secrets.AZURE_CLIENT_SECRET }}" ]; then echo "AZURE_CLIENT_SECRET is set"; else echo "AZURE_CLIENT_SECRET is missing"; fi
-    
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -26,9 +20,7 @@ jobs:
     - name: Log in to Azure CLI using Service Principal
       uses: azure/login@v1
       with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
         
     - name: Log in to Azure Container Registry
       run: |
