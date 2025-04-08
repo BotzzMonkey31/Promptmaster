@@ -78,3 +78,5 @@ jobs:
           --resource-group ISNL_AIGame_EnriqueB \
           --type external \
           --target-port 8080
+
+        az containerapp start --name promptmaster-backend --resource-group ISNL_AIGame_EnriqueB
