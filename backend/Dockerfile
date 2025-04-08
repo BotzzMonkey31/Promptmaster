@@ -1,5 +1,6 @@
 FROM openjdk:21-jdk-slim
 WORKDIR /app
 COPY target/backend-0.0.1-SNAPSHOT.jar /app/backend.jar
+ENV SERVER_PORT=8080
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "backend.jar"]
+ENTRYPOINT ["java", "-Dserver.port=8080", "-jar", "backend.jar"]
