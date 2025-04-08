@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Check for secrets
+      run: |
+        if [ -n "${{ secrets.AZURE_CLIENT_ID }}" ]; then echo "AZURE_CLIENT_ID is set"; else echo "AZURE_CLIENT_ID is missing"; fi
+        if [ -n "${{ secrets.AZURE_TENANT_ID }}" ]; then echo "AZURE_TENANT_ID is set"; else echo "AZURE_TENANT_ID is missing"; fi
+        if [ -n "${{ secrets.AZURE_CLIENT_SECRET }}" ]; then echo "AZURE_CLIENT_SECRET is set"; else echo "AZURE_CLIENT_SECRET is missing"; fi
+    
     - name: Checkout repository
       uses: actions/checkout@v4
 
