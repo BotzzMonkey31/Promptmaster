@@ -86,6 +86,12 @@ const handleLoginSuccess = (response: CredentialResponse) => {
   const { credential } = response
   console.log('Access Token', credential)
 
+  if (!credential) {
+    console.error('No credential received');
+    status.value = 'Login failed: No credential received';
+    return;
+  }
+
   const decoded = JSON.parse(atob(credential.split('.')[1]))
   const userData = {
     name: decoded.name,
