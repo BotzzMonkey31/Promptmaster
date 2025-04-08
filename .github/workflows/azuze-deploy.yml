@@ -60,7 +60,6 @@ jobs:
           --resource-group ISNL_AIGame_EnriqueB \
           --image promptmasterregistry.azurecr.io/frontend:latest \
           --cpu 1 --memory 2Gi
-          --min-replicas 1
           
         az containerapp ingress update \
           --name promptmaster-frontend \
@@ -73,7 +72,6 @@ jobs:
           --resource-group ISNL_AIGame_EnriqueB \
           --image promptmasterregistry.azurecr.io/backend:latest \
           --cpu 1 --memory 2Gi
-          --min-replicas 1
           
         az containerapp ingress update \
           --name promptmaster-backend \
