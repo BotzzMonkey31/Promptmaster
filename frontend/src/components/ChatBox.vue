@@ -114,7 +114,9 @@ export default {
     },
     async sendMessage() {
       if (!this.newMessage.trim() || !this.socket) return
-      this.currentUser = JSON.parse(Cookies.get('user'))
+      const userCookie = Cookies.get('user')
+      if (!userCookie) return
+      this.currentUser = JSON.parse(userCookie)
       const message = {
         type: 'CHAT',
         content: this.newMessage.trim(),
