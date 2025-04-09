@@ -3,3 +3,8 @@ server:
 spring:
   main:
     web-application-type: servlet
+  datasource:
+    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/your-database-name?useSSL=true&requireSSL=true
+    username: enrique
+    password: TaMaRa1726
+    driver-class-name: com.mysql.cj.jdbc.Driver

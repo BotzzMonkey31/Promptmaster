@@ -61,6 +61,7 @@
 import axios from 'axios'
 import Cookies from 'js-cookie'
 import ChatBox from '../components/ChatBox.vue'
+import apiClient from '../services/api'
 
 interface RankThreshold {
   rank: string
@@ -118,10 +119,10 @@ export default {
       const currentRank = rankThresholds.find(
         (r) => this.user!.elo >= r.min && this.user!.elo <= r.max,
       )
-      if (!currentRank) return 100 // PromptMaster
+      if (!currentRank) return 100
 
       const nextRank = rankThresholds.find((r) => r.min > currentRank.min)
-      if (!nextRank) return 100 // No higher rank
+      if (!nextRank) return 100
 
       const progress = ((this.user.elo - currentRank.min) / (nextRank.min - currentRank.min)) * 100
       return Math.min(Math.max(Math.round(progress), 0), 100)
@@ -138,40 +139,18 @@ export default {
       }
 
       const userData = JSON.parse(savedUser)
-      console.log('Attempting to fetch user data for:', userData.email)
 
-      try {
-        const response = await axios.get<User>(
-          `http://localhost:8080/users/email/${encodeURIComponent(userData.email)}`,
-          {
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-            },
-          },
-        )
+      const response = await apiClient.get(`/users/email/${encodeURIComponent(userData.email)}`)
 
-        if (!response.data) {
-          throw new Error('No data received from server')
-        }
-
-        this.user = response.data
-        // No need to set rank as it's computed from ELO
-
-        if (!this.user.country) {
-          this.user.country = 'Unknown'
-        }
-      } catch (apiError: any) {
-        console.error('API Error:', apiError.response?.data || apiError.message)
-        this.error = `API Error: ${apiError.response?.data?.message || apiError.message}`
-        throw apiError
+      if (!response.data) {
+        throw new Error('No data received from server')
       }
 
+      this.user = response.data
       this.loading = false
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error details:', error)
-      this.error =
-        error.response?.data?.message || 'Failed to load user data. Please try again later.'
+      this.error = 'Failed to load user data. Please try again later.'
       this.loading = false
     }
   },

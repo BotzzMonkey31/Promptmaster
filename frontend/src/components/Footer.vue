@@ -18,5 +18,4 @@ export default {
 </script>
 
 <style scoped>
-/* Add any specific styles for the footer if needed */
 </style>

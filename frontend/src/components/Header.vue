@@ -1,8 +1,8 @@
 <template>
   <header class="bg-white shadow p-4 flex justify-between items-center relative">
-    <a href="https://localhost:5173/" class="no-underline">
+    <router-link to="/" class="no-underline">
       <h1 class="text-xl font-semibold text-black">Promptmaster</h1>
-    </a>
+    </router-link>
     <nav>
       <ul class="flex space-x-2 list-none p-0">
         <li>

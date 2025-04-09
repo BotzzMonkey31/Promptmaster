@@ -134,12 +134,13 @@ export default {
       })
     },
     initWebSocket() {
-      this.socket = new WebSocket('ws://localhost:8080/chat')
+      const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws');
+      this.socket = new WebSocket(`${baseUrl}/chat`);
 
       this.socket.onmessage = (event) => {
-        const message = JSON.parse(event.data)
+        const message = JSON.parse(event.data);
 
-        const isSelf = message.username === this.currentUser.name
+        const isSelf = message.username === this.currentUser.name;
 
         this.messages.push({
           username: message.username,
@@ -147,22 +148,22 @@ export default {
           content: message.content,
           timestamp: new Date(),
           isSelf: isSelf,
-        })
+        });
 
         if (!this.isOpen && !isSelf) {
-          this.unreadCount++
+          this.unreadCount++;
         }
 
         this.$nextTick(() => {
-          const container = this.$refs.messagesContainer as HTMLElement
-          container.scrollTop = container.scrollHeight
-        })
-      }
+          const container = this.$refs.messagesContainer as HTMLElement;
+          container.scrollTop = container.scrollHeight;
+        });
+      };
 
       this.socket.onclose = () => {
-        console.log('WebSocket connection closed')
-        setTimeout(() => this.initWebSocket(), 5000)
-      }
+        console.log('WebSocket connection closed');
+        setTimeout(() => this.initWebSocket(), 5000);
+      };
     },
   },
   mounted() {

@@ -94,7 +94,7 @@
 </template>
 
 <script lang="ts">
-import axios from 'axios'
+import apiClient from '../services/api'
 
 interface Puzzle {
   id: number
@@ -141,7 +141,7 @@ export default {
   methods: {
     async fetchPuzzles() {
       try {
-        const response = await axios.get('http://localhost:8080/puzzles')
+        const response = await apiClient.get('/puzzles')
 
         // Store the data as-is without normalization
         this.puzzles = response.data.map((puzzle: Puzzle) => {

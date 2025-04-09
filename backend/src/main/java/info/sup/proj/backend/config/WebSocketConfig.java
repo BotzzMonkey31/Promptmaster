@@ -11,6 +11,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(new ChatWebSocketHandler(), "/chat")
-                .setAllowedOrigins("*"); // In production, specify your frontend domain
+                .setAllowedOrigins(
+                    "https://localhost:5173",
+                        "https://promptmaster-frontend.braveforest-8e4d5d0c.westeurope.azurecontainerapps.io"
+                        );
     }
 }
