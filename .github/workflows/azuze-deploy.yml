@@ -71,7 +71,7 @@ jobs:
           --name promptmaster-backend \
           --resource-group ISNL_AIGame_EnriqueB \
           --image promptmasterregistry.azurecr.io/backend:latest \
-          --cpu 1 --memory 2Gi
+          --cpu 1 --memory 2Gi \
           --env-vars SERVER_PORT=8080 SPRING_PROFILES_ACTIVE=prod
           
         az containerapp ingress update \
