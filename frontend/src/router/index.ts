@@ -3,7 +3,8 @@ import HomeView from '../views/Home.vue'
 import PrivacyPolicy from '../views/PrivacyPolicy.vue'
 import TermsOfService from '../views/TermsOfService.vue'
 import PuzzleOverview from '../views/PuzzleOverview.vue'
-import Test from '../views/Test.vue'
+import Multi from '../views/Multi.vue'
+//import Test from '../views/Test.vue'
 import Lobby from '../views/Lobby.vue'
 import SignUp from '../views/SignUp.vue'
 import PuzzleDetail from '../views/PuzzleDetail.vue'
@@ -38,8 +39,8 @@ const router = createRouter({
     },
     {
       path: '/test',
-      name: 'test',
-      component: Test,
+      name: 'multistep',
+      component: Multi,
     },
     {
       path: '/vs',

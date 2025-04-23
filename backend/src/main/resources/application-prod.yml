@@ -1,0 +1,26 @@
+server:
+  port: 8080
+spring:
+  main:
+    web-application-type: servlet
+  datasource:
+    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/mydatabase?useSSL=true&requireSSL=true
+    username: enrique
+    password: TaMaRa1726
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
+  jpa.defer-datasource-initialization: true
+  application:
+    name: backend
+  websocket:
+    enabled: true
