@@ -4,10 +4,18 @@ spring:
   main:
     web-application-type: servlet
   datasource:
-    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/mydatabase?useSSL=true&requireSSL=true&verifyServerCertificate=true
+    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/mydatabase?useSSL=true&enabledTLSProtocols=TLSv1.2
     username: enrique
     password: TaMaRa1726
     driver-class-name: com.mysql.cj.jdbc.Driver
+    tomcat:
+      test-on-borrow: true
+      validation-query: SELECT 1
+      validation-interval: 30000
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 5
   jpa:
     hibernate:
       ddl-auto: update
@@ -21,7 +29,6 @@ spring:
     init:
       mode: always
       continue-on-error: true
-  jpa.defer-datasource-initialization: true
   application:
     name: backend
   websocket:
