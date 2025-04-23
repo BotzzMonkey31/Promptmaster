@@ -4,7 +4,7 @@ spring:
   main:
     web-application-type: servlet
   datasource:
-    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/mydatabase?useSSL=true&requireSSL=true
+    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/mydatabase?useSSL=true&requireSSL=true&verifyServerCertificate=true
     username: enrique
     password: TaMaRa1726
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -15,6 +15,8 @@ spring:
     properties:
       hibernate:
         format_sql: false
+        dialect: org.hibernate.dialect.MySQLDialect
+    database-platform: org.hibernate.dialect.MySQLDialect
   sql:
     init:
       mode: always
@@ -24,3 +26,11 @@ spring:
     name: backend
   websocket:
     enabled: true
+
+# Add logging for debugging connection issues
+logging:
+  level:
+    org.hibernate.SQL: ERROR
+    org.hibernate.type.descriptor.sql.BasicBinder: ERROR
+    com.zaxxer.hikari: DEBUG
+    org.springframework.jdbc: DEBUG
