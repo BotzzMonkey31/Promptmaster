@@ -1,7 +1,7 @@
 <template>
   <div class="multistep-container">
     <div class="top-section">
-      <img class="avatar" src="../../../../../../Downloads/20241113_190031.jpg" alt="Avatar" />
+      <img class="avatar" alt="Avatar" />
       <div class="text-bubble">{{ textBubble }}</div>
     </div>
 
