@@ -67,6 +67,7 @@
 
         <button
           class="mt-4 px-6 py-3 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all"
+          @click.stop="$router.push(`/solve/${puzzle.id}`)"
         >
           Solve Now
         </button>
