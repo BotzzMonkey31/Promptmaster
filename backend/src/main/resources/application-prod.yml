@@ -4,18 +4,18 @@ spring:
   main:
     web-application-type: servlet
   datasource:
-    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/mydatabase?useSSL=true
-    username: enrique
+    url: jdbc:sqlserver://promptmaster-sql-server.database.windows.net:1433;database=mydatabase;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
+    username: enriqueRoot@promptmaster-sql-server
     password: TaMaRa1726
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    tomcat:
-      test-on-borrow: true
-      validation-query: SELECT 1
-      validation-interval: 30000
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
     hikari:
       connection-timeout: 30000
-      maximum-pool-size: 10
-      minimum-idle: 5
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000 
+      max-lifetime: 1200000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
   jpa:
     hibernate:
       ddl-auto: update
@@ -23,8 +23,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
-    database-platform: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.SQLServerDialect
+        connection:
+          provider_disables_autocommit: false
+        generate_statistics: true
+        jdbc:
+          time_zone: UTC
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    open-in-view: false
   sql:
     init:
       mode: always
@@ -39,7 +45,7 @@ logging:
   level:
     root: INFO
     info.sup.proj.backend: DEBUG
-    org.springframework: DEBUG
+    org.springframework: INFO
     org.springframework.web: DEBUG
     org.springframework.security: DEBUG
     org.springframework.orm.jpa: DEBUG
@@ -48,6 +54,7 @@ logging:
     com.zaxxer.hikari: DEBUG
     com.mysql.cj: DEBUG
     org.springframework.jdbc: DEBUG
+    com.zaxxer.hikari.HikariConfig: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
