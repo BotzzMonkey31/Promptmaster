@@ -37,8 +37,13 @@ const router = createRouter({
       component: PuzzleDetail
     },
     {
+      path: '/solve/:id',
+      name: 'solve',
+      component: () => import('../views/Solve.vue'),
+    },
+    {
       path: '/test',
-      name: 'test',
+      name: 'multistep',
       component: Test,
     },
     {

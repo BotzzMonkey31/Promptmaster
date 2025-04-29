@@ -67,6 +67,7 @@
 
         <button
           class="mt-4 px-6 py-3 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all"
+          @click.stop="$router.push(`/solve/${puzzle.id}`)"
         >
           Solve Now
         </button>
@@ -94,7 +95,7 @@
 </template>
 
 <script lang="ts">
-import axios from 'axios'
+import apiClient from '../services/api'
 
 interface Puzzle {
   id: number
@@ -141,10 +142,10 @@ export default {
   methods: {
     async fetchPuzzles() {
       try {
-        const response = await axios.get('http://localhost:8080/puzzles')
+        const response = await apiClient.get('/puzzles')
 
         // Store the data as-is without normalization
-        this.puzzles = response.data.map((puzzle) => {
+        this.puzzles = response.data.map((puzzle: Puzzle) => {
           return {
             ...puzzle,
           }

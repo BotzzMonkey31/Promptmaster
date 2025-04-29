@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import apiClient from '../services/api'
 import Cookies from 'js-cookie'
 
 const router = useRouter()
@@ -43,7 +43,7 @@ onMounted(async () => {
       country: '',
     }
 
-    const response = await axios.get(`http://localhost:8080/users/check/${parsedUserData.email}`)
+    const response = await apiClient.get(`/users/check/${parsedUserData.email}`)
 
     if (response.data.exists) {
       router.push('/')
@@ -262,12 +262,15 @@ const handleSubmit = async () => {
       return
     }
 
-    const response = await axios.post('http://localhost:8080/users/create', userForm.value)
+    const response = await apiClient.post('/users/create', userForm.value)
 
     if (response.status === 201) {
-      // Store complete user data
+      console.log('User created successfully:', response.data)
       Cookies.set('user', JSON.stringify(response.data), { expires: 7 })
       router.push('/home')
+    } else {
+      console.error('Unexpected response status:', response.status)
+      error.value = 'Error creating user profile'
     }
   } catch (err) {
     error.value = 'Error creating user profile'

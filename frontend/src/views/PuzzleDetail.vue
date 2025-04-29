@@ -1,7 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <div class="max-w-5xl mx-auto py-10 px-4">
-      <!-- Puzzle Card -->
       <div class="bg-white rounded-lg p-8 mb-6 shadow-md">
         <div class="mb-4">
           <h1 class="text-3xl font-bold mb-2">Puzzle: {{ puzzle.name }}</h1>
@@ -50,7 +49,6 @@
         </button>
       </div>
 
-      <!-- Previous Solutions -->
       <div class="bg-white rounded-lg p-8 shadow-md">
         <h2 class="text-2xl font-bold mb-6">Previous Solutions</h2>
 
@@ -74,8 +72,7 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue'
-import axios from 'axios'
-import { useRouter } from 'vue-router'
+import apiClient from '../services/api'
 
 export default defineComponent({
   name: 'PuzzleDetail',
@@ -115,23 +112,19 @@ export default defineComponent({
     formatType(type: string) {
       if (type === 'BY_PASS') return 'Bypass'
       if (type === 'Multi_Step') return 'Multi-Step'
-      return type // Return as is for other values like 'Faulty'
+      return type
     },
     startSolving() {
-      // Navigate to the puzzle solver page
       this.$router.push(`/solve/${this.puzzle.id}`)
     },
     async fetchPuzzleDetails() {
       try {
-        // Get the puzzle ID from the route parameters
         const puzzleId = this.$route.params.id
         const puzzleIdString = Array.isArray(puzzleId) ? puzzleId[0] : puzzleId
 
-        // Fetch puzzle details
-        const response = await axios.get(`http://localhost:8080/puzzles/${puzzleIdString}`)
+        const response = await apiClient.get(`/puzzles/${puzzleIdString}`)
         this.puzzle = response.data
 
-        // Fetch instructions, tips, and solutions based on the puzzle type
         this.loadInstructionsAndTips()
         this.loadSolutions(puzzleIdString)
       } catch (error) {
@@ -139,7 +132,6 @@ export default defineComponent({
       }
     },
     loadInstructionsAndTips() {
-      // Determine which type we're dealing with
       const typeKey = this.puzzle.type.toUpperCase().replace('-', '_')
 
       if (typeKey === 'BY_PASS' || typeKey === 'BYPASS') {
@@ -182,8 +174,6 @@ export default defineComponent({
     },
     async loadSolutions(puzzleId: string) {
       try {
-        // In a real app, you would fetch solutions from your API using the puzzleId
-        // For this example, we'll use hardcoded data
         console.log(`Fetching solutions for puzzle ID: ${puzzleId}`)
         this.solutions = [
           {

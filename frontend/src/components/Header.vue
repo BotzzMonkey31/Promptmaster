@@ -1,8 +1,8 @@
 <template>
   <header class="bg-white shadow p-4 flex justify-between items-center relative">
-    <a href="https://localhost:5173/" class="no-underline">
+    <router-link to="/" class="no-underline">
       <h1 class="text-xl font-semibold text-black">Promptmaster</h1>
-    </a>
+    </router-link>
     <nav>
       <ul class="flex space-x-2 list-none p-0">
         <li>
@@ -85,6 +85,12 @@ const toggleDropdown = () => {
 const handleLoginSuccess = (response: CredentialResponse) => {
   const { credential } = response
   console.log('Access Token', credential)
+
+  if (!credential) {
+    console.error('No credential received');
+    status.value = 'Login failed: No credential received';
+    return;
+  }
 
   const decoded = JSON.parse(atob(credential.split('.')[1]))
   const userData = {
