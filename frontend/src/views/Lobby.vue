@@ -131,26 +131,78 @@ export default {
 
   async created() {
     try {
+      // Log the beginning of user data fetching
+      console.log('Starting to fetch user data')
+
       const savedUser = Cookies.get('user')
       if (!savedUser) {
+        console.log('No user cookie found')
         this.error = 'No user is logged in'
         this.loading = false
         return
       }
 
-      const userData = JSON.parse(savedUser)
+      console.log('Found user cookie:', savedUser)
 
-      const response = await apiClient.get(`/users/email/${encodeURIComponent(userData.email)}`)
+      try {
+        const userData = JSON.parse(savedUser)
+        console.log('Parsed user cookie data:', userData)
 
-      if (!response.data) {
-        throw new Error('No data received from server')
+        if (!userData.email) {
+          console.error('No email found in user cookie')
+          this.error = 'User data is incomplete'
+          this.loading = false
+          return
+        }
+
+        // Log the API URL and request
+        console.log('API base URL:', import.meta.env.VITE_API_BASE_URL || 'not defined')
+
+        // Use query parameter instead of path parameter
+        console.log(`Making modified request with email: ${userData.email}`)
+
+        // Add timeout to API call and use query parameters instead
+        const response = await apiClient.get('/users/email', {
+          params: { email: userData.email },  // Send as query parameter
+          timeout: 10000 // 10 second timeout
+        })
+
+        console.log('Full API response:', response)
+
+        if (!response || response.status !== 200) {
+          throw new Error(`Server responded with status ${response?.status || 'unknown'}`)
+        }
+
+        if (!response.data) {
+          console.error('Response exists but no data received')
+          throw new Error('No data received from server')
+        }
+
+        console.log('User data from API:', response.data)
+
+        this.user = response.data
+        this.loading = false
+        console.log('User data loaded:', this.user)
+      } catch (parseError) {
+        console.error('Error parsing user cookie:', parseError)
+        this.error = 'Invalid user data format'
+        this.loading = false
+      }
+    } catch (error: any) {
+      console.error('Error fetching user data:', error)
+      console.error('Error message:', error.message)
+
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        console.error('Response data:', error.response.data)
+        console.error('Response status:', error.response.status)
+        console.error('Response headers:', error.response.headers)
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('Request made but no response:', error.request)
       }
 
-      this.user = response.data
-      this.loading = false
-    } catch (error) {
-      console.error('Error details:', error)
-      this.error = 'Failed to load user data. Please try again later.'
+      this.error = `Failed to load user data: ${error.message || 'Unknown error'}`
       this.loading = false
     }
   },

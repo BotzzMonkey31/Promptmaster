@@ -3,6 +3,7 @@ package info.sup.proj.backend.controllers;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.model.UserRegistrationDto;
 import info.sup.proj.backend.services.UserService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,6 +25,14 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
+    
+    @GetMapping("/email")
+    public ResponseEntity<User> getUserByEmailParam(@RequestParam String email) {
+        System.out.println("Received request for email: " + email);
+        return userService.getUserByEmail(email)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
 
     @GetMapping("/check/{email}")
     public ResponseEntity<Map<String, Boolean>> checkUser(@PathVariable String email) {
@@ -34,6 +43,6 @@ public class UserController {
     @PostMapping("/create")
     public ResponseEntity<User> createUser(@RequestBody UserRegistrationDto registrationDto) {
         User user = userService.registerUser(registrationDto);
-        return ResponseEntity.ok(user);
+        return new ResponseEntity<>(user, HttpStatus.CREATED);
     }
 }

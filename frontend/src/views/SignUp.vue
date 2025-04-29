@@ -265,9 +265,12 @@ const handleSubmit = async () => {
     const response = await apiClient.post('/users/create', userForm.value)
 
     if (response.status === 201) {
-      // Store complete user data
+      console.log('User created successfully:', response.data)
       Cookies.set('user', JSON.stringify(response.data), { expires: 7 })
       router.push('/home')
+    } else {
+      console.error('Unexpected response status:', response.status)
+      error.value = 'Error creating user profile'
     }
   } catch (err) {
     error.value = 'Error creating user profile'

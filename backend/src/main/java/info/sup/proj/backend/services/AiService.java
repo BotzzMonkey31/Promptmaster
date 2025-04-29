@@ -147,19 +147,80 @@ public class AiService {
     }
 
     private String[] splitResponse(String content) {
+        // Default to treating all content as text
         String text = content;
         String code = "";
         
+        // Check for code blocks with triple backticks
         int codeStart = content.indexOf("```");
         if (codeStart != -1) {
             int codeEnd = content.indexOf("```", codeStart + 3);
             if (codeEnd != -1) {
                 text = content.substring(0, codeStart).trim();
-                code = content.substring(codeStart + 3, codeEnd).trim();
+                
+                // Get language identifier if present (e.g., ```python)
+                String codeContent = content.substring(codeStart + 3, codeEnd);
+                int newlinePos = codeContent.indexOf('\n');
+                
+                if (newlinePos != -1) {
+                    // Remove language identifier if present
+                    code = codeContent.substring(newlinePos + 1).trim();
+                } else {
+                    code = codeContent.trim();
+                }
+                
+                // Check if there's text after the code block and append it to text
+                if (codeEnd + 3 < content.length()) {
+                    text += " " + content.substring(codeEnd + 3).trim();
+                }
+            }
+        } else {
+            // Alternative detection: Look for patterns that might indicate code without backticks
+            // Common programming language patterns
+            String[] codeIndicators = {
+                "public class", "def ", "function ", "import ", "package ", "var ", "const ", 
+                "let ", "#include", "using namespace", "public static void main"
+            };
+            
+            for (String indicator : codeIndicators) {
+                int indicatorPos = content.indexOf(indicator);
+                if (indicatorPos > 20) {  // Avoid detecting indicators that are part of explanation text
+                    text = content.substring(0, indicatorPos).trim();
+                    code = content.substring(indicatorPos).trim();
+                    break;
+                }
             }
         }
         
         return new String[]{text, code};
+    }
+
+    public String getCodeEvaluation(String evaluationPrompt, String code, Puzzle.Type puzzleType) {
+        List<ChatRequestMessage> messages = new ArrayList<>();
+        
+        // System message instructing the AI to evaluate code
+        messages.add(new ChatRequestSystemMessage(
+            "You are an AI code evaluator. Analyze the provided code solution for the given puzzle. " +
+            "Evaluate correctness (how well it solves the problem) and quality (structure, efficiency, best practices). " +
+            "Provide exact numerical scores from 0-100 for both aspects in JSON format."
+        ));
+        
+        // Add the evaluation prompt that contains puzzle details
+        messages.add(new ChatRequestUserMessage(evaluationPrompt + "\n\n```\n" + code + "\n```"));
+
+        ChatCompletions completions = client.getChatCompletions(
+            deploymentName,
+            new ChatCompletionsOptions(messages)
+                .setTemperature(0.1) // Low temperature for consistent evaluation
+                .setMaxTokens(200)   // We just need the evaluation scores
+        );
+
+        if (completions != null && completions.getChoices() != null && !completions.getChoices().isEmpty()) {
+            return completions.getChoices().get(0).getMessage().getContent();
+        }
+
+        // Return a default response if the AI evaluation fails
+        return "{\"correctness\": 70, \"quality\": 70}";
     }
 
     public static class ChatResponse {

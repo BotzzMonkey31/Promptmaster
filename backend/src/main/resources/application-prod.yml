@@ -4,10 +4,10 @@ spring:
   main:
     web-application-type: servlet
   datasource:
-    url: jdbc:mysql://promptmaster-db-mysql.mysql.database.azure.com:3306/promptmaster?useSSL=true&requireSSL=true&verifyServerCertificate=false&enabledTLSProtocols=TLSv1.2&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: enrique@promptmaster-db-mysql
+    url: jdbc:sqlserver://promptmaster-sql-server.database.windows.net:1433;database=mydatabase;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
+    username: enriqueRoot@promptmaster-sql-server
     password: TaMaRa1726
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
     hikari:
       connection-timeout: 60000
       maximum-pool-size: 5
@@ -24,8 +24,8 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
-    database-platform: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.SQLServerDialect
+    database-platform: org.hibernate.dialect.SQLServerDialect
   sql:
     init:
       mode: always
@@ -45,7 +45,7 @@ logging:
     org.springframework.security: INFO
     org.hibernate.SQL: DEBUG
     com.zaxxer.hikari: DEBUG
-    com.mysql.cj: DEBUG
+    org.hibernate.type: TRACE
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
