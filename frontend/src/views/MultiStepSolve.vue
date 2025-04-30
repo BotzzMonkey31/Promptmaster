@@ -105,7 +105,28 @@
           <div class="text-5xl font-bold text-white">{{ scoreDetails.totalScore || 0 }}</div>
         </div>
 
-        <h3 class="text-xl font-semibold mb-3">Score Breakdown</h3>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xl font-semibold">Score Breakdown</h3>
+          <div class="relative">
+            <button
+              class="w-6 h-6 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center font-bold hover:bg-gray-300"
+              @mouseenter="showScoreHelp = true"
+              @mouseleave="showScoreHelp = false"
+            >?</button>
+            <div v-if="showScoreHelp" class="absolute right-0 bottom-full mb-2 p-4 bg-white rounded-lg shadow-lg w-72 z-10 text-left text-sm">
+              <h4 class="font-bold mb-1">How Scoring Works</h4>
+              <p class="mb-2">Scores are calculated based on:</p>
+              <ul class="list-disc pl-5 space-y-1">
+                <li><span class="font-semibold">Time:</span> Faster completions earn more points</li>
+                <li><span class="font-semibold">Efficiency:</span> Fewer interactions get higher scores</li>
+                <li><span class="font-semibold">Token Usage:</span> More efficient token usage is rewarded</li>
+                <li><span class="font-semibold">Code Correctness:</span> How well your solution meets requirements</li>
+                <li><span class="font-semibold">Code Quality:</span> Code structure, readability and best practices</li>
+              </ul>
+              <div class="w-3 h-3 absolute -bottom-1.5 right-2 bg-white transform rotate-45"></div>
+            </div>
+          </div>
+        </div>
 
         <div class="space-y-3 mb-6">
           <div class="flex justify-between items-center">
@@ -208,6 +229,7 @@ const metrics = ref({
 });
 const currentTimer = ref(0);
 let timerInterval: number | null = null;
+const showScoreHelp = ref(false);
 
 onMounted(async () => {
   if (editorDiv.value) {
@@ -321,6 +343,9 @@ async function markCompleted() {
         interactionCount: response.data.scoreDetails.interactionCount || 0
       };
 
+      // Update user's ELO with the earned score
+      await updateUserElo(userId, scoreDetails.value.totalScore);
+
       // Show the score popup
       showScorePopup.value = true;
 
@@ -416,6 +441,26 @@ async function getUserId(): Promise<string | null> {
   console.log("Using guest ID as fallback:", userId);
 
   return userId;
+}
+
+// Add the function to update user ELO after getUserId function
+async function updateUserElo(userId: string, score: number): Promise<void> {
+  try {
+    console.log(`Updating user ELO for user ${userId} with score ${score}`);
+
+    const response = await apiClient.post('/users/update-elo', {
+      userId: userId,
+      scoreToAdd: score
+    });
+
+    if (response.data.success) {
+      console.log('ELO updated successfully:', response.data);
+    } else {
+      console.error('Failed to update ELO:', response.data.message);
+    }
+  } catch (error) {
+    console.error('Error updating user ELO:', error);
+  }
 }
 
 async function resetSession() {

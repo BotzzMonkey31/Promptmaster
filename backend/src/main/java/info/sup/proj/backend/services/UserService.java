@@ -22,6 +22,7 @@ public class UserService {
     public boolean checkUserExists(String email) {
         return userRepository.existsByEmail(email);
     }
+    
     public Optional<User> getUserByEmail(String email) {
         return userRepository.findByEmail(email);
     }
@@ -43,6 +44,29 @@ public class UserService {
         user.setPicture(registrationDto.getPicture());
         user.setCountry(registrationDto.getCountry());
 
+        return userRepository.save(user);
+    }
+    
+    /**
+     * Updates a user's ELO score by adding the specified score amount
+     * @param userId The ID of the user whose ELO score is being updated
+     * @param scoreToAdd The score amount to add to the current ELO
+     * @return An updated User object with the new ELO score
+     * @throws RuntimeException if the user is not found
+     */
+    @Transactional
+    public User updateUserElo(Long userId, Integer scoreToAdd) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        
+        // Add the score to the current ELO
+        int currentElo = user.getElo();
+        int newElo = currentElo + scoreToAdd;
+        
+        // Update user's ELO
+        user.setElo(newElo);
+        
+        // Save and return the updated user
         return userRepository.save(user);
     }
 }

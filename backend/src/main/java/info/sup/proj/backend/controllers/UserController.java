@@ -45,4 +45,32 @@ public class UserController {
         User user = userService.registerUser(registrationDto);
         return new ResponseEntity<>(user, HttpStatus.CREATED);
     }
+    
+    /**
+     * Update a user's ELO score by adding the puzzle completion score
+     */
+    @PostMapping("/update-elo")
+    public ResponseEntity<Map<String, Object>> updateUserElo(@RequestBody Map<String, Object> request) {
+        try {
+            // Extract parameters from the request
+            Long userId = Long.parseLong(request.get("userId").toString());
+            Integer scoreToAdd = Integer.parseInt(request.get("scoreToAdd").toString());
+            
+            // Call service to update the user's ELO
+            User updatedUser = userService.updateUserElo(userId, scoreToAdd);
+            
+            // Return success response with the new ELO
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "ELO updated successfully",
+                "newElo", updatedUser.getElo()
+            ));
+        } catch (Exception e) {
+            // Return error response
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "success", false,
+                "message", "Failed to update ELO: " + e.getMessage()
+            ));
+        }
+    }
 }
