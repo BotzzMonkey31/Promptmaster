@@ -37,6 +37,30 @@ public class User {
         this.elo = elo;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPicture() {
+        return picture;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public int getElo() {
+        return elo;
+    }
+
     @Column(unique = true, nullable = false)
     private String email;
 
