@@ -2,7 +2,6 @@ package info.sup.proj.backend.services;
 
 import info.sup.proj.backend.model.Puzzle;
 import info.sup.proj.backend.model.PuzzleSession;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -13,20 +12,13 @@ public class ScoreService {
 
     private final AiService aiService;
 
-    @Autowired
     public ScoreService(AiService aiService) {
         this.aiService = aiService;
     }
 
-    /**
-     * Calculate a comprehensive score for a completed puzzle
-     * @param session The puzzle session to evaluate
-     * @return A map containing the score details
-     */
     public Map<String, Object> calculateScore(PuzzleSession session) {
         Map<String, Object> scoreDetails = new HashMap<>();
         
-        // Get the raw metrics
         int interactionCount = session.getInteractions().size();
         long timeSeconds = session.getBestTimeSeconds() != null 
             ? session.getBestTimeSeconds() 
@@ -34,18 +26,42 @@ public class ScoreService {
         String currentCode = session.getCurrentCode();
         Puzzle puzzle = session.getPuzzle();
         
-        // Calculate scores for each component (0-100)
-        int timeScore = calculateTimeScore(timeSeconds, puzzle.getDifficulty());
-        int efficiencyScore = calculateEfficiencyScore(interactionCount, puzzle.getDifficulty());
+        int minInteractions;
+        switch (puzzle.getDifficulty()) {
+            case Easy:
+                minInteractions = 3;
+                break;
+            case Medium:
+                minInteractions = 2;
+                break;
+            case Hard:
+                minInteractions = 2;
+                break;
+            default:
+                minInteractions = 2;
+        }
         
-        // Get AI evaluation of code quality and correctness
-        Map<String, Integer> aiEvaluation = evaluateCodeWithAi(currentCode, puzzle);
-        int correctnessScore = aiEvaluation.get("correctness");
-        int qualityScore = aiEvaluation.get("quality");
-        int tokenScore = calculateTokenScore(interactionCount, puzzle.getDifficulty());
+        boolean isSerious = interactionCount >= minInteractions && currentCode != null && !currentCode.trim().isEmpty();
         
-        // Calculate total score (weighted average)
-        int totalScore = (int) Math.round(
+        int timeScore, efficiencyScore, tokenScore, correctnessScore, qualityScore;
+        
+        if (isSerious) {
+            timeScore = calculateTimeScore(timeSeconds, puzzle.getDifficulty());
+            efficiencyScore = calculateEfficiencyScore(interactionCount, puzzle.getDifficulty());
+            
+            Map<String, Integer> aiEvaluation = evaluateCodeWithAi(currentCode, puzzle);
+            correctnessScore = aiEvaluation.get("correctness");
+            qualityScore = aiEvaluation.get("quality");
+            tokenScore = calculateTokenScore(interactionCount, puzzle.getDifficulty());
+        } else {
+            timeScore = 0;
+            efficiencyScore = 0;
+            tokenScore = 0;
+            correctnessScore = 0;
+            qualityScore = 0;
+        }
+        
+        int calculatedScore = (int) Math.round(
             timeScore * 0.25 + 
             efficiencyScore * 0.20 + 
             tokenScore * 0.15 +
@@ -53,15 +69,22 @@ public class ScoreService {
             qualityScore * 0.15
         );
         
-        // Add all scores to the response
+        boolean hasFailed = timeScore < 40 || 
+                           efficiencyScore < 40 || 
+                           tokenScore < 40 || 
+                           correctnessScore < 40 || 
+                           qualityScore < 40;
+        
+        int totalScore = hasFailed ? 0 : calculatedScore;
+        
         scoreDetails.put("totalScore", totalScore);
+        scoreDetails.put("hasFailed", hasFailed);
         scoreDetails.put("timeScore", timeScore);
         scoreDetails.put("efficiencyScore", efficiencyScore);
         scoreDetails.put("tokenScore", tokenScore);
         scoreDetails.put("correctnessScore", correctnessScore);
         scoreDetails.put("codeQualityScore", qualityScore);
         
-        // Add raw metrics for context
         scoreDetails.put("timeSeconds", timeSeconds);
         scoreDetails.put("interactionCount", interactionCount);
         
@@ -69,96 +92,109 @@ public class ScoreService {
     }
     
     private int calculateTimeScore(long seconds, Puzzle.Difficulty difficulty) {
-        // Base expected times for different difficulties (in seconds)
         long expectedTime;
         switch (difficulty) {
             case Easy:
-                expectedTime = 300; // 5 minutes
+                expectedTime = 600;
                 break;
             case Medium:
-                expectedTime = 600; // 10 minutes
+                expectedTime = 450;
                 break;
             case Hard:
-                expectedTime = 1200; // 20 minutes
+                expectedTime = 300;
                 break;
             default:
-                expectedTime = 600;
+                expectedTime = 450;
         }
         
-        // Calculate score based on time taken relative to expected time
-        // Score decreases as time increases
-        if (seconds <= expectedTime / 2) {
-            return 100; // Excellent: Half the expected time or less
+        if (seconds <= expectedTime / 4) {
+            return 100;
+        } else if (seconds <= expectedTime / 2) {
+            return 95;
+        } else if (seconds <= expectedTime * 0.75) {
+            return 90;
         } else if (seconds <= expectedTime) {
-            return 90; // Great: Within expected time
+            return 85;
         } else if (seconds <= expectedTime * 1.5) {
-            return 80; // Good: Up to 50% longer than expected
+            return 75;
         } else if (seconds <= expectedTime * 2) {
-            return 70; // Average: Up to twice the expected time
+            return 65;
+        } else if (seconds <= expectedTime * 3) {
+            return 55;
         } else {
-            return Math.max(50, 100 - (int)((seconds - expectedTime * 2) / 60)); // Decreasing score for longer times
+            return Math.max(30, 50 - (int)((seconds - expectedTime * 3) / 120));
         }
     }
     
     private int calculateEfficiencyScore(int interactionCount, Puzzle.Difficulty difficulty) {
-        // Base expected interactions for different difficulties
         int expectedInteractions;
         switch (difficulty) {
             case Easy:
-                expectedInteractions = 5;
+                expectedInteractions = 9;
                 break;
             case Medium:
-                expectedInteractions = 8;
+                expectedInteractions = 6;
                 break;
             case Hard:
-                expectedInteractions = 12;
+                expectedInteractions = 4;
                 break;
             default:
-                expectedInteractions = 8;
+                expectedInteractions = 6;
         }
         
-        // Score decreases as interaction count increases beyond expectation
-        if (interactionCount <= expectedInteractions / 2) {
-            return 100; // Excellent: Half the expected interactions or fewer
+        if (interactionCount <= expectedInteractions / 3) {
+            return 100;
+        } else if (interactionCount <= expectedInteractions / 2) {
+            return 95;
+        } else if (interactionCount <= expectedInteractions * 0.75) {
+            return 90;
         } else if (interactionCount <= expectedInteractions) {
-            return 90; // Great: Within expected interactions
+            return 85;
         } else if (interactionCount <= expectedInteractions * 1.5) {
-            return 80; // Good: Up to 50% more than expected
+            return 75;
         } else if (interactionCount <= expectedInteractions * 2) {
-            return 70; // Average: Up to twice the expected
+            return 65;
+        } else if (interactionCount <= expectedInteractions * 3) {
+            return 55;
         } else {
-            return Math.max(50, 100 - (interactionCount - expectedInteractions * 2) * 2); // Decrease for more interactions
+            return Math.max(35, 50 - (interactionCount - expectedInteractions * 3));
         }
     }
 
     private int calculateTokenScore(int interactionCount, Puzzle.Difficulty difficulty) {
-        // This is a proxy for token usage based on interaction count
-        // Similar to efficiency score but with different thresholds
         int expectedTokenUsage;
         switch (difficulty) {
             case Easy:
-                expectedTokenUsage = 6;
+                expectedTokenUsage = 12;
                 break;
             case Medium:
-                expectedTokenUsage = 10;
+                expectedTokenUsage = 8;
                 break;
             case Hard:
-                expectedTokenUsage = 15;
+                expectedTokenUsage = 5;
                 break;
             default:
-                expectedTokenUsage = 10;
+                expectedTokenUsage = 8;
         }
         
-        if (interactionCount <= expectedTokenUsage / 2) {
+        if (interactionCount <= expectedTokenUsage / 3) {
             return 100;
-        } else if (interactionCount <= expectedTokenUsage) {
+        } else if (interactionCount <= expectedTokenUsage / 2) {
+            return 95;
+        } else if (interactionCount <= expectedTokenUsage * 0.75) {
             return 90;
+        } else if (interactionCount <= expectedTokenUsage) {
+            return 85;
+        } else if (interactionCount <= expectedTokenUsage * 1.25) {
+            return 80;
         } else if (interactionCount <= expectedTokenUsage * 1.5) {
-            return 75;
+            return 70;
         } else if (interactionCount <= expectedTokenUsage * 2) {
             return 60;
+        } else if (interactionCount <= expectedTokenUsage * 3) {
+            return 50;
         } else {
-            return Math.max(40, 100 - (interactionCount - expectedTokenUsage * 2) * 3);
+            return Math.max(30, 45 - (interactionCount - expectedTokenUsage * 3) * 2);
         }
     }
     
@@ -166,16 +202,12 @@ public class ScoreService {
         Map<String, Integer> scores = new HashMap<>();
         
         try {
-            // Create a prompt for evaluating correctness and quality
             String evaluationPrompt = createEvaluationPrompt(code, puzzle);
             
-            // Call the AI service to evaluate the code
             String evaluationResponse = aiService.getCodeEvaluation(evaluationPrompt, code, puzzle.getType());
             
-            // Parse the response to extract scores (assumed format: JSON-like string)
             scores = parseAiEvaluation(evaluationResponse);
         } catch (Exception e) {
-            // Fallback if AI evaluation fails
             scores.put("correctness", 75);
             scores.put("quality", 70);
         }
@@ -201,7 +233,6 @@ public class ScoreService {
         Map<String, Integer> result = new HashMap<>();
         
         try {
-            // Extract scores using simple string parsing (as a fallback if JSON parsing fails)
             if (evaluationResponse.contains("\"correctness\":")) {
                 int correctnessIndex = evaluationResponse.indexOf("\"correctness\":");
                 int commaIndex = evaluationResponse.indexOf(",", correctnessIndex);
@@ -216,12 +247,10 @@ public class ScoreService {
                 result.put("quality", Integer.parseInt(qualityStr));
             }
         } catch (Exception e) {
-            // Default values if parsing fails
             result.put("correctness", 75);
             result.put("quality", 70);
         }
         
-        // Ensure both scores exist
         if (!result.containsKey("correctness")) result.put("correctness", 75);
         if (!result.containsKey("quality")) result.put("quality", 70);
         

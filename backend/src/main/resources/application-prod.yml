@@ -54,3 +54,5 @@ logging:
 app:
   cors:
     allowed-origins: https://localhost:5173,https://promptmaster-frontend.braveforest-8e4d5d0c.westeurope.azurecontainerapps.io
+  initialization:
+    force: false

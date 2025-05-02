@@ -2,15 +2,23 @@ package info.sup.proj.backend.config;
 
 import info.sup.proj.backend.model.Puzzle;
 import info.sup.proj.backend.services.PuzzleService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
 
+    private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
+    
     private final PuzzleService puzzleService;
+    
+    @Value("${app.initialization.force:false}")
+    private boolean forceInitialization;
 
     public DataInitializer(PuzzleService puzzleService) {
         this.puzzleService = puzzleService;
@@ -18,9 +26,20 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        // Check if database is empty before seeding
-        if (puzzleService.getAllPuzzles().isEmpty()) {
-            seedPuzzles().forEach(puzzleService::savePuzzle);
+        try {
+            logger.info("Checking if database initialization is needed. Force initialization: {}", forceInitialization);
+            
+            // Check if database is empty or force initialization is enabled
+            if (forceInitialization || puzzleService.getAllPuzzles().isEmpty()) {
+                logger.info("Seeding puzzle data into database");
+                seedPuzzles().forEach(puzzleService::savePuzzle);
+                logger.info("Database initialization completed successfully");
+            } else {
+                logger.info("Database already contains puzzles, skipping initialization");
+            }
+        } catch (Exception e) {
+            logger.error("Failed to initialize database: {}", e.getMessage(), e);
+            // Don't rethrow to allow application to start even if initialization fails
         }
     }
 
