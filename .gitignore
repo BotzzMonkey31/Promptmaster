@@ -65,4 +65,9 @@ dist/
 npm-debug.log
 yarn-error.log
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
 # End of https://www.toptal.com/developers/gitignore/api/java,vue,vuejs
