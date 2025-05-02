@@ -56,11 +56,22 @@
         <div class="flex justify-between w-full">
           <button
             @click="handleSubmit"
-            class="px-6 py-2.5 bg-blue-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-blue-600 active:translate-y-0.25"
-          >Submit</button>
+            :disabled="isSubmitting"
+            class="px-6 py-2.5 bg-blue-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-blue-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+          >
+            <span v-if="!isSubmitting">Submit</span>
+            <span v-else class="flex items-center">
+              <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Processing...
+            </span>
+          </button>
           <button
             @click="confirmReset"
-            class="px-6 py-2.5 bg-red-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-red-600 active:translate-y-0.25"
+            :disabled="isSubmitting"
+            class="px-6 py-2.5 bg-red-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-red-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed"
           >Start Over</button>
         </div>
       </div>
@@ -97,75 +108,87 @@
     <!-- New Score Popup -->
     <div v-if="showScorePopup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
       <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
-        <h2 class="text-3xl font-bold text-center mb-2">Puzzle Complete!</h2>
+        <h2 class="text-3xl font-bold text-center mb-2">{{ scoreDetails.hasFailed ? 'Puzzle Failed!' : 'Puzzle Complete!' }}</h2>
         <p class="text-gray-600 text-center mb-6">Here's how you did:</p>
 
-        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 mb-6 text-center">
+        <div class="bg-gradient-to-r rounded-lg p-6 mb-6 text-center"
+             :class="scoreDetails.hasFailed ? 'from-red-500 to-red-700' : 'from-blue-500 to-purple-600'">
           <h3 class="text-white text-lg font-medium mb-1">Your Score</h3>
           <div class="text-5xl font-bold text-white">{{ scoreDetails.totalScore || 0 }}</div>
+          <div v-if="scoreDetails.hasFailed" class="text-white mt-2 text-sm">
+            Scores below 40 in any category result in failure
+          </div>
         </div>
 
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-xl font-semibold">Score Breakdown</h3>
-          <div class="relative">
-            <button
-              class="w-6 h-6 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center font-bold hover:bg-gray-300"
-              @mouseenter="showScoreHelp = true"
-              @mouseleave="showScoreHelp = false"
-            >?</button>
-            <div v-if="showScoreHelp" class="absolute right-0 bottom-full mb-2 p-4 bg-white rounded-lg shadow-lg w-72 z-10 text-left text-sm">
-              <h4 class="font-bold mb-1">How Scoring Works</h4>
-              <p class="mb-2">Scores are calculated based on:</p>
-              <ul class="list-disc pl-5 space-y-1">
-                <li><span class="font-semibold">Time:</span> Faster completions earn more points</li>
-                <li><span class="font-semibold">Efficiency:</span> Fewer interactions get higher scores</li>
-                <li><span class="font-semibold">Token Usage:</span> More efficient token usage is rewarded</li>
-                <li><span class="font-semibold">Code Correctness:</span> How well your solution meets requirements</li>
-                <li><span class="font-semibold">Code Quality:</span> Code structure, readability and best practices</li>
-              </ul>
-              <div class="w-3 h-3 absolute -bottom-1.5 right-2 bg-white transform rotate-45"></div>
+        <div class="relative">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xl font-semibold">Score Breakdown</h3>
+            <div class="relative">
+              <button
+                class="w-6 h-6 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center font-bold hover:bg-gray-300"
+                @mouseenter="showScoreHelp = true"
+                @mouseleave="showScoreHelp = false"
+              >?</button>
+              <div v-if="showScoreHelp" class="absolute right-0 bottom-full mb-2 p-4 bg-white rounded-lg shadow-lg w-72 z-10 text-left text-sm">
+                <h4 class="font-bold mb-1">How Scoring Works</h4>
+                <p class="mb-2">Scores are calculated based on:</p>
+                <ul class="list-disc pl-5 space-y-1">
+                  <li><span class="font-semibold">Time:</span> Faster completions earn more points</li>
+                  <li><span class="font-semibold">Efficiency:</span> Fewer interactions get higher scores</li>
+                  <li><span class="font-semibold">Token Usage:</span> More efficient token usage is rewarded</li>
+                  <li><span class="font-semibold">Code Correctness:</span> How well your solution meets requirements</li>
+                  <li><span class="font-semibold">Code Quality:</span> Code structure, readability and best practices</li>
+                  <li><span class="font-semibold text-red-600">IMPORTANT:</span> Any score below 40 is considered a failing attempt</li>
+                </ul>
+                <div class="w-3 h-3 absolute -bottom-1.5 right-2 bg-white transform rotate-45"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="space-y-3 mb-6">
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.timeScore < 40}">
             <span class="text-gray-700">Time ({{ formatTime(scoreDetails.timeSeconds) }})</span>
             <div class="flex items-center">
-              <span class="font-bold">{{ scoreDetails.timeScore || 0 }}</span>
+              <span class="font-bold" :class="{'text-red-600': scoreDetails.timeScore < 40}">{{ scoreDetails.timeScore || 0 }}</span>
               <span class="text-gray-500 text-sm ml-1">/100</span>
+              <span v-if="scoreDetails.timeScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
             </div>
           </div>
 
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.efficiencyScore < 40}">
             <span class="text-gray-700">Efficiency ({{ scoreDetails.interactionCount || 0 }} interactions)</span>
             <div class="flex items-center">
-              <span class="font-bold">{{ scoreDetails.efficiencyScore || 0 }}</span>
+              <span class="font-bold" :class="{'text-red-600': scoreDetails.efficiencyScore < 40}">{{ scoreDetails.efficiencyScore || 0 }}</span>
               <span class="text-gray-500 text-sm ml-1">/100</span>
+              <span v-if="scoreDetails.efficiencyScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
             </div>
           </div>
 
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.tokenScore < 40}">
             <span class="text-gray-700">Token Usage</span>
             <div class="flex items-center">
-              <span class="font-bold">{{ scoreDetails.tokenScore || 0 }}</span>
+              <span class="font-bold" :class="{'text-red-600': scoreDetails.tokenScore < 40}">{{ scoreDetails.tokenScore || 0 }}</span>
               <span class="text-gray-500 text-sm ml-1">/100</span>
+              <span v-if="scoreDetails.tokenScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
             </div>
           </div>
 
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.correctnessScore < 40}">
             <span class="text-gray-700">Code Correctness</span>
             <div class="flex items-center">
-              <span class="font-bold">{{ scoreDetails.correctnessScore || 0 }}</span>
+              <span class="font-bold" :class="{'text-red-600': scoreDetails.correctnessScore < 40}">{{ scoreDetails.correctnessScore || 0 }}</span>
               <span class="text-gray-500 text-sm ml-1">/100</span>
+              <span v-if="scoreDetails.correctnessScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
             </div>
           </div>
 
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.codeQualityScore < 40}">
             <span class="text-gray-700">Code Quality</span>
             <div class="flex items-center">
-              <span class="font-bold">{{ scoreDetails.codeQualityScore || 0 }}</span>
+              <span class="font-bold" :class="{'text-red-600': scoreDetails.codeQualityScore < 40}">{{ scoreDetails.codeQualityScore || 0 }}</span>
               <span class="text-gray-500 text-sm ml-1">/100</span>
+              <span v-if="scoreDetails.codeQualityScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
             </div>
           </div>
         </div>
@@ -208,6 +231,7 @@ const editor = ref<EditorView | null>(null);
 const editorDiv = ref(null);
 const textBubble = ref("That's too much in one go, try to split up the task in different steps.");
 const showResetConfirm = ref(false);
+const isSubmitting = ref(false); // New state variable for loading state
 // New state for score popup
 const showScorePopup = ref(false);
 const scoreDetails = ref({
@@ -218,7 +242,8 @@ const scoreDetails = ref({
   correctnessScore: 0,
   codeQualityScore: 0,
   timeSeconds: 0,
-  interactionCount: 0
+  interactionCount: 0,
+  hasFailed: false
 });
 const metrics = ref({
   attemptCount: 1,
@@ -340,7 +365,8 @@ async function markCompleted() {
         correctnessScore: response.data.scoreDetails.correctnessScore || 0,
         codeQualityScore: response.data.scoreDetails.codeQualityScore || 0,
         timeSeconds: response.data.scoreDetails.timeSeconds || 0,
-        interactionCount: response.data.scoreDetails.interactionCount || 0
+        interactionCount: response.data.scoreDetails.interactionCount || 0,
+        hasFailed: response.data.scoreDetails.hasFailed || false
       };
 
       // Update user's ELO with the earned score
@@ -499,8 +525,14 @@ async function resetSession() {
 
 async function handleSubmit() {
   try {
+    if (isSubmitting.value) return; // Prevent multiple submissions
+    isSubmitting.value = true; // Enable loading state
+
     const userId = await getUserId();
-    if (!userId) return;
+    if (!userId) {
+      isSubmitting.value = false;
+      return;
+    }
 
     const response = await apiClient.post('/ai/solve', {
       puzzleId: props.puzzle.id,
@@ -524,11 +556,13 @@ async function handleSubmit() {
     }
 
     userInput.value = '';
-
     await fetchMetrics();
+
   } catch (error) {
     textBubble.value = 'An error occurred. Please try again.';
     console.error(error);
+  } finally {
+    isSubmitting.value = false; // Disable loading state regardless of success/failure
   }
 }
 

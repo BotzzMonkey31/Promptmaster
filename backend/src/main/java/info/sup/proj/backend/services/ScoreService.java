@@ -26,7 +26,6 @@ public class ScoreService {
         String currentCode = session.getCurrentCode();
         Puzzle puzzle = session.getPuzzle();
         
-        // Check for minimum meaningful engagement with the puzzle
         int minInteractions;
         switch (puzzle.getDifficulty()) {
             case Easy:
@@ -42,7 +41,6 @@ public class ScoreService {
                 minInteractions = 2;
         }
         
-        // If the puzzle was barely attempted or abandoned, assign low scores
         boolean isSerious = interactionCount >= minInteractions && currentCode != null && !currentCode.trim().isEmpty();
         
         int timeScore, efficiencyScore, tokenScore, correctnessScore, qualityScore;
@@ -56,15 +54,14 @@ public class ScoreService {
             qualityScore = aiEvaluation.get("quality");
             tokenScore = calculateTokenScore(interactionCount, puzzle.getDifficulty());
         } else {
-            // For non-serious attempts, assign low scores
-            timeScore = 30;
-            efficiencyScore = 30;
-            tokenScore = 30;
-            correctnessScore = 20;
-            qualityScore = 20;
+            timeScore = 0;
+            efficiencyScore = 0;
+            tokenScore = 0;
+            correctnessScore = 0;
+            qualityScore = 0;
         }
         
-        int totalScore = (int) Math.round(
+        int calculatedScore = (int) Math.round(
             timeScore * 0.25 + 
             efficiencyScore * 0.20 + 
             tokenScore * 0.15 +
@@ -72,7 +69,16 @@ public class ScoreService {
             qualityScore * 0.15
         );
         
+        boolean hasFailed = timeScore < 40 || 
+                           efficiencyScore < 40 || 
+                           tokenScore < 40 || 
+                           correctnessScore < 40 || 
+                           qualityScore < 40;
+        
+        int totalScore = hasFailed ? 0 : calculatedScore;
+        
         scoreDetails.put("totalScore", totalScore);
+        scoreDetails.put("hasFailed", hasFailed);
         scoreDetails.put("timeScore", timeScore);
         scoreDetails.put("efficiencyScore", efficiencyScore);
         scoreDetails.put("tokenScore", tokenScore);
