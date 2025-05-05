@@ -1,5 +1,6 @@
 package info.sup.proj.backend.controllers;
 
+import info.sup.proj.backend.exceptions.UserAlreadyExistsException;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.model.UserRegistrationDto;
 import info.sup.proj.backend.services.UserService;
@@ -42,8 +43,14 @@ public class UserController {
 
     @PostMapping("/create")
     public ResponseEntity<User> createUser(@RequestBody UserRegistrationDto registrationDto) {
-        User user = userService.registerUser(registrationDto);
-        return new ResponseEntity<>(user, HttpStatus.CREATED);
+        try {
+            User user = userService.registerUser(registrationDto);
+            return new ResponseEntity<>(user, HttpStatus.CREATED);
+        } catch (UserAlreadyExistsException e) {
+            return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .build();
+        }
     }
     
     /**
