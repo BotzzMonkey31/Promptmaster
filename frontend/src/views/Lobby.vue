@@ -337,9 +337,15 @@ export default {
 
       this.findingOpponent = true
 
+      // Enhanced opponent matching options
+      const matchPreferences = {
+        eloRange: 200,             // Starting ELO range to match within
+        strictMatching: false      // Whether to use strict matching or gradual range expansion
+      }
+
       const message = {
         type: 'FIND_OPPONENT',
-        content: '',
+        content: JSON.stringify(matchPreferences),
         userId: this.user.id
       }
 

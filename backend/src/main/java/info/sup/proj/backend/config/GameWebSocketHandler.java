@@ -177,10 +177,84 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         User user = userService.getUserById(userId)
             .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
-        // Find suitable opponent based on ELO
-        int userElo = user.getElo();
-        int eloRange = 200; // Start with a smaller range
+        // Enhanced opponent matching with more parameters
+        try {
+            Map<String, Object> preferences = new HashMap<>();
+            if (!message.getContent().isEmpty()) {
+                preferences = objectMapper.readValue(message.getContent(), Map.class);
+            }
+            
+            // Get matching preferences or use defaults
+            int eloRange = preferences.containsKey("eloRange") ? 
+                           (int) preferences.get("eloRange") : 200;
+            
+            boolean strictMatching = preferences.containsKey("strictMatching") ? 
+                                   (boolean) preferences.get("strictMatching") : false;
+            
+            // Find suitable opponent based on preferences
+            int userElo = user.getElo();
+            GamePlayer opponent = null;
+            
+            if (strictMatching) {
+                // Strict matching - use exact preferences
+                Optional<GamePlayer> potentialOpponent = waitingPlayers.stream()
+                    .filter(player -> !player.getUserId().equals(userId) &&
+                                     Math.abs(player.getElo() - userElo) <= eloRange &&
+                                     !player.isInGame())
+                    .findFirst();
+                    
+                if (potentialOpponent.isPresent()) {
+                    opponent = potentialOpponent.get();
+                }
+            } else {
+                // Progressive matching - gradually increase range
+                int currentEloRange = eloRange;
+                while (currentEloRange <= 1000 && opponent == null) {
+                    int finalEloRange = currentEloRange;
+                    Optional<GamePlayer> potentialOpponent = waitingPlayers.stream()
+                        .filter(player -> !player.getUserId().equals(userId) &&
+                                         Math.abs(player.getElo() - userElo) <= finalEloRange &&
+                                         !player.isInGame())
+                        .findFirst();
+                        
+                    if (potentialOpponent.isPresent()) {
+                        opponent = potentialOpponent.get();
+                        break;
+                    }
+                    
+                    currentEloRange += eloRange; // Gradually increase the range
+                }
+            }
+            
+            if (opponent != null) {
+                // Found an opponent, start a game
+                startGame(userId, opponent.getUserId());
+                
+                // Log match details
+                System.out.println("Match found: " + user.getUsername() + " (ELO: " + userElo + 
+                                  ") vs " + opponent.getUsername() + " (ELO: " + opponent.getElo() + ")");
+            } else {
+                // No opponent found
+                GameMessage responseMessage = new GameMessage(
+                    "NO_OPPONENT", 
+                    "No suitable opponent found. Please try again later.",
+                    userId
+                );
+                sendMessageToSession(session, responseMessage);
+            }
+        } catch (Exception e) {
+            System.err.println("Error in find opponent logic: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Fallback to simple matching on error
+            findOpponentSimple(session, userId, user.getElo());
+        }
+    }
+    
+    // Simple fallback method for finding opponents
+    private void findOpponentSimple(WebSocketSession session, Long userId, int userElo) throws IOException {
         GamePlayer opponent = null;
+        int eloRange = 200;
         
         while (eloRange <= 1000 && opponent == null) {
             int finalEloRange = eloRange;
@@ -195,7 +269,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
                 break;
             }
             
-            eloRange += 200; // Gradually increase the range if no opponent found
+            eloRange += 200;
         }
         
         if (opponent != null) {
@@ -267,8 +341,57 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         Long accepterId = message.getUserId();
         Long challengerId = Long.parseLong(message.getContent());
         
+        System.out.println("Challenge accepted: User " + accepterId + " accepted challenge from " + challengerId);
+        
+        // Validate both players are available
+        String challengerSessionId = userToSessionMap.get(challengerId);
+        String accepterSessionId = userToSessionMap.get(accepterId);
+        
+        if (challengerSessionId == null || accepterSessionId == null) {
+            System.err.println("Error accepting challenge: One of the players is not available");
+            GameMessage errorMessage = new GameMessage(
+                "ERROR", 
+                "Unable to start game: one of the players is no longer available",
+                accepterId
+            );
+            sendMessageToSession(session, errorMessage);
+            return;
+        }
+        
+        WebSocketSession challengerSession = sessions.get(challengerSessionId);
+        if (challengerSession == null || !challengerSession.isOpen()) {
+            System.err.println("Error accepting challenge: Challenger's session is not available");
+            GameMessage errorMessage = new GameMessage(
+                "ERROR", 
+                "Unable to start game: the challenger is no longer connected",
+                accepterId
+            );
+            sendMessageToSession(session, errorMessage);
+            return;
+        }
+        
         // Start a game between these two players
-        startGame(challengerId, accepterId);
+        try {
+            startGame(challengerId, accepterId);
+        } catch (Exception e) {
+            System.err.println("Error starting game after challenge acceptance: " + e.getMessage());
+            e.printStackTrace();
+            
+            GameMessage errorMessage = new GameMessage(
+                "ERROR", 
+                "Failed to start game: " + e.getMessage(),
+                accepterId
+            );
+            sendMessageToSession(session, errorMessage);
+            
+            // Also notify the challenger
+            GameMessage challengerErrorMessage = new GameMessage(
+                "ERROR", 
+                "Failed to start game: " + e.getMessage(),
+                challengerId
+            );
+            sendMessageToSession(challengerSession, challengerErrorMessage);
+        }
     }
 
     private void handleRejectChallenge(WebSocketSession session, GameMessage message) throws IOException {
@@ -795,6 +918,10 @@ class GameSession {
     public List<Integer> getPlayer2Scores() { return player2Scores; }
     
     public int getCurrentPuzzleId() {
+        // If currentRound is 0, return the first puzzle
+        if (currentRound <= 0 && !puzzleIds.isEmpty()) {
+            return puzzleIds.get(0);
+        }
         return puzzleIds.get(currentRound - 1);
     }
     
