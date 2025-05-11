@@ -5,6 +5,7 @@ import TermsOfService from '../views/TermsOfService.vue'
 import PuzzleOverview from '../views/PuzzleOverview.vue'
 import Test from '../views/Test.vue'
 import Lobby from '../views/Lobby.vue'
+import Game from '../views/Game.vue'
 import SignUp from '../views/SignUp.vue'
 import PuzzleDetail from '../views/PuzzleDetail.vue'
 
@@ -50,6 +51,11 @@ const router = createRouter({
       path: '/vs',
       name: 'vs',
       component: Lobby,
+    },
+    {
+      path: '/game',
+      name: 'game',
+      component: Game,
     },
     {
       path: '/signup',
