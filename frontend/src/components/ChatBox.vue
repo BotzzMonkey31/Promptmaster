@@ -92,6 +92,9 @@ export default {
       socket: null as WebSocket | null,
       currentUser: {} as { name: string; picture: string },
       defaultAvatar: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+      isConnecting: false,
+      connectionAttempts: 0,
+      maxReconnectAttempts: 5,
     }
   },
   methods: {
@@ -134,36 +137,84 @@ export default {
       })
     },
     initWebSocket() {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws');
-      this.socket = new WebSocket(`${baseUrl}/chat`);
-
-      this.socket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-
-        const isSelf = message.username === this.currentUser.name;
-
-        this.messages.push({
-          username: message.username,
-          userPicture: message.userPicture,
-          content: message.content,
-          timestamp: new Date(),
-          isSelf: isSelf,
-        });
-
-        if (!this.isOpen && !isSelf) {
-          this.unreadCount++;
+      // Don't try to reconnect if we're already connecting
+      if (this.isConnecting) return;
+      
+      // Load user information at initialization
+      const userCookie = Cookies.get('user');
+      if (userCookie) {
+        try {
+          this.currentUser = JSON.parse(userCookie);
+        } catch (e) {
+          console.error('Error parsing user cookie:', e);
         }
+      }
+      
+      this.isConnecting = true;
+      
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws');
+        console.log(`Connecting to WebSocket at ${baseUrl}/chat`);
+        this.socket = new WebSocket(`${baseUrl}/chat`);
+        
+        this.socket.onopen = () => {
+          console.log('WebSocket connection established');
+          this.isConnecting = false;
+          this.connectionAttempts = 0; // Reset connection attempts on successful connection
+        };
 
-        this.$nextTick(() => {
-          const container = this.$refs.messagesContainer as HTMLElement;
-          container.scrollTop = container.scrollHeight;
-        });
-      };
+        this.socket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            
+            const isSelf = message.username === this.currentUser.name;
 
-      this.socket.onclose = () => {
-        console.log('WebSocket connection closed');
-        setTimeout(() => this.initWebSocket(), 5000);
-      };
+            this.messages.push({
+              username: message.username,
+              userPicture: message.userPicture,
+              content: message.content,
+              timestamp: new Date(),
+              isSelf: isSelf,
+            });
+
+            if (!this.isOpen && !isSelf) {
+              this.unreadCount++;
+            }
+
+            this.$nextTick(() => {
+              const container = this.$refs.messagesContainer as HTMLElement;
+              if (container) {
+                container.scrollTop = container.scrollHeight;
+              }
+            });
+          } catch (e) {
+            console.error('Error processing WebSocket message:', e);
+          }
+        };
+
+        this.socket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          this.isConnecting = false;
+        };
+
+        this.socket.onclose = (event) => {
+          this.isConnecting = false;
+          console.log(`WebSocket connection closed: Code ${event.code}, Reason: ${event.reason}`);
+          
+          // Attempt to reconnect with increasing delay but don't exceed max attempts
+          if (this.connectionAttempts < this.maxReconnectAttempts) {
+            this.connectionAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, this.connectionAttempts), 30000); // Exponential backoff with max 30s
+            console.log(`Attempting to reconnect in ${delay/1000}s (attempt ${this.connectionAttempts})`);
+            setTimeout(() => this.initWebSocket(), delay);
+          } else {
+            console.error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts`);
+          }
+        };
+      } catch (e) {
+        console.error('Error initializing WebSocket:', e);
+        this.isConnecting = false;
+      }
     },
   },
   mounted() {

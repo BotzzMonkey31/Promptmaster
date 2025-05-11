@@ -63,7 +63,7 @@
       <div v-if="!inGame && !showGameResults" class="text-center mt-8">
         <p class="mb-4 text-gray-600">Waiting for a game to start...</p>
         <button
-          @click="$router.push('/lobby')"
+          @click="$router.push('/vs')"
           class="bg-blue-500 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-600 transition"
         >
           Return to Lobby
@@ -321,10 +321,33 @@ export default {
         case 'GAME_OVER':
           handleGameOver(message)
           break
+        case 'NO_OPPONENT':
+          handleNoOpponent(message)
+          break
         case 'ERROR':
           handleError(message)
           break
       }
+    }
+
+    const handleNoOpponent = (message: any) => {
+      showNotification('info', message.content || "No opponent found. Returning to lobby...")
+      console.log("NO_OPPONENT message received, returning to lobby")
+
+      // Stop any timers
+      if (timerInterval.value) {
+        clearInterval(timerInterval.value)
+        timerInterval.value = null
+      }
+
+      // Reset game state
+      inGame.value = false
+      currentGame.value = null
+
+      // Add a slight delay before redirecting back to lobby
+      setTimeout(() => {
+        router.push('/vs')
+      }, 2000)
     }
 
     const handleGameStarted = (message: any) => {
@@ -508,13 +531,13 @@ export default {
     const playAgain = () => {
       showGameResults.value = false
       gameResults.value = null
-      router.push('/lobby')
+      router.push('/vs')
     }
 
     const returnToLobby = () => {
       showGameResults.value = false
       gameResults.value = null
-      router.push('/lobby')
+      router.push('/vs')
     }
 
     const showNotification = (type: string, message: string) => {

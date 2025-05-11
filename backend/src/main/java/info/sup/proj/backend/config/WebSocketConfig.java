@@ -17,10 +17,13 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Autowired
     private GameWebSocketHandler gameWebSocketHandler;
     
+    @Autowired
+    private ChatWebSocketHandler chatWebSocketHandler;
+    
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         // Chat WebSocket handler
-        registry.addHandler(new ChatWebSocketHandler(), "/chat")
+        registry.addHandler(chatWebSocketHandler, "/chat")
                 .setAllowedOrigins(allowedOrigins);
         
         // Game WebSocket handler

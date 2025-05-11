@@ -337,6 +337,9 @@ export default {
 
       this.findingOpponent = true
 
+      // Show notification that search has started
+      this.showNotification('info', 'Searching for an opponent...')
+
       // Enhanced opponent matching options
       const matchPreferences = {
         eloRange: 200,             // Starting ELO range to match within
@@ -355,9 +358,9 @@ export default {
       setTimeout(() => {
         if (this.findingOpponent) {
           this.findingOpponent = false
-          this.showNotification('info', 'No opponent found. Please try again later.')
+          this.showNotification('info', 'No response from server. Please try again.')
         }
-      }, 10000)
+      }, 15000) // Extended to 15 seconds
     },
     challengePlayer(player: Player) {
       if (!this.gameSocket || !this.user?.id) return
