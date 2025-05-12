@@ -4,7 +4,6 @@
       <h2 class="text-2xl font-semibold text-center mb-6">Game Lobby</h2>
       <p class="text-center text-gray-600 mb-4">Find an opponent or invite a friend to a match!</p>
 
-      <!-- Game Notifications -->
       <div v-if="gameNotification" class="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded relative mb-6">
         <span v-html="gameNotification.message"></span>
         <div v-if="gameNotification.type === 'challenge'" class="flex justify-center gap-4 mt-3">
@@ -13,7 +12,6 @@
         </div>
       </div>
 
-      <!-- Game Controls -->
       <div class="flex justify-center gap-4 mb-6">
         <button
           @click="findRandomOpponent"
@@ -30,7 +28,6 @@
         </button>
       </div>
 
-      <!-- Invite Friend Modal -->
       <div v-if="showInviteModal" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50" @click="toggleInviteModal"></div>
         <div class="bg-white p-6 rounded-lg shadow-lg z-10 w-full max-w-md">
@@ -55,7 +52,6 @@
         </div>
       </div>
 
-      <!-- Available Players -->
       <div class="bg-white p-6 shadow rounded-lg mb-6">
         <h3 class="text-lg font-semibold mb-4">Available Players</h3>
         <div v-if="players.length === 0" class="text-gray-500 text-center py-4">
@@ -83,7 +79,6 @@
         </ul>
       </div>
 
-      <!-- Your Rank -->
       <div class="bg-white p-6 shadow rounded-lg">
         <h3 class="text-lg font-semibold mb-4">Your Rank</h3>
         <div v-if="error" class="text-red-500 mb-4">
@@ -123,7 +118,6 @@ import apiClient from '../services/api'
 import { useRouter } from 'vue-router'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 
-// Add type declaration for gameSocketInstance on Window interface
 declare global {
   interface Window {
     gameSocketInstance?: WebSocket;
@@ -195,9 +189,9 @@ export default {
       linkCopied: false,
       challengerId: null as number | null,
       defaultAvatar: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
-      preserveSocket: false, // Add this flag to control socket preservation
-      matchmakingTimer: null as number | null, // Changed from NodeJS.Timeout to number
-      transitioningToGame: false // Move from setup() to data()
+      preserveSocket: false,
+      matchmakingTimer: null as number | null,
+      transitioningToGame: false
     }
   },
   computed: {
@@ -227,7 +221,6 @@ export default {
     },
     async loadUserData() {
       try {
-        // Log the beginning of user data fetching
         console.log('Starting to fetch user data')
 
         const savedUser = Cookies.get('user')
@@ -249,10 +242,9 @@ export default {
             return
           }
 
-          // Add timeout to API call and use query parameters instead
           const response = await apiClient.get('/users/email', {
-            params: { email: userData.email },  // Send as query parameter
-            timeout: 10000 // 10 second timeout
+            params: { email: userData.email },
+            timeout: 10000
           })
 
           if (!response || response.status !== 200) {
@@ -267,7 +259,6 @@ export default {
           this.user = response.data
           this.loading = false
 
-          // If user data is loaded successfully, initialize the WebSocket connection
           this.initGameWebSocket()
         } catch (parseError) {
           console.error('Error parsing user cookie:', parseError)
@@ -286,7 +277,6 @@ export default {
         return
       }
 
-      // Close previous socket if it exists
       if (this.gameSocket) {
         this.gameSocket.close()
       }
@@ -296,7 +286,6 @@ export default {
 
       this.gameSocket.onopen = () => {
         console.log('Game WebSocket connection established')
-        // Join the lobby when connection is established
         this.joinLobby()
       }
 
@@ -309,7 +298,6 @@ export default {
 
       this.gameSocket.onclose = () => {
         console.log('Game WebSocket connection closed')
-        // Try to reconnect after 5 seconds
         setTimeout(() => this.initGameWebSocket(), 5000)
       }
 
@@ -347,13 +335,11 @@ export default {
 
       this.findingOpponent = true
 
-      // Show notification that search has started
       this.showNotification('info', 'Searching for an opponent...')
 
-      // Enhanced opponent matching options
       const matchPreferences = {
-        eloRange: 200,             // Starting ELO range to match within
-        strictMatching: false      // Whether to use strict matching or gradual range expansion
+        eloRange: 200,
+        strictMatching: false
       }
 
       const message = {
@@ -364,13 +350,12 @@ export default {
 
       this.gameSocket.send(JSON.stringify(message))
 
-      // Set a timeout to reset the button state if no response is received
       setTimeout(() => {
         if (this.findingOpponent) {
           this.findingOpponent = false
           this.showNotification('info', 'No response from server. Please try again.')
         }
-      }, 15000) // Extended to 15 seconds
+      }, 15000)
     },
     challengePlayer(player: Player) {
       if (!this.gameSocket || !this.user?.id) return
@@ -395,21 +380,16 @@ export default {
       }
 
       if (this.gameSocket && this.gameSocket.readyState === WebSocket.OPEN) {
-        // Set the transition flag
         this.transitioningToGame = true
 
-        // Set the preserve flag to true so the socket doesn't get closed
         this.preserveSocket = true
 
-        // Store the socket instance in the window object for the Game component to use
         if (this.gameSocket) {
           window.gameSocketInstance = this.gameSocket
         }
 
-        // Send the accept message
         this.gameSocket.send(JSON.stringify(message))
 
-        // Navigate to the game view with a flag to preserve the connection
         this.router.push({
           path: '/game',
           query: {
@@ -435,7 +415,6 @@ export default {
       this.challengerId = null
     },
     handleGameMessage(message: any) {
-      // Only process messages meant for this user
       if (message.userId !== this.user?.id) {
         return
       }
@@ -508,20 +487,16 @@ export default {
     handleGameStarted(message: any) {
       try {
         const gameData = JSON.parse(message.content)
-        // Store the socket instance globally so Game.vue can use it
         if (this.gameSocket) {
           window.gameSocketInstance = this.gameSocket
         }
 
-        // Set flag to preserve socket connection when transitioning
 
-        // Set flag to preserve socket connection when transitioning
         this.preserveSocket = true
 
-        // Navigate to game view with necessary data - fixed to use params instead of incorporating gameId in the path
         this.$router.push({
-          name: 'game',  // Use named route instead of path with parameter
-          params: { gameId: gameData.gameId }, // This will be properly set as a route param
+          name: 'game',
+          params: { gameId: gameData.gameId },
           query: {
             opponentId: gameData.opponentId,
             opponentName: gameData.opponentName,
@@ -543,7 +518,6 @@ export default {
     showNotification(type: string, message: string) {
       this.gameNotification = { type, message }
 
-      // Auto-hide non-challenge notifications after 5 seconds
       if (type !== 'challenge') {
         setTimeout(() => {
           if (this.gameNotification && this.gameNotification.message === message) {
@@ -558,8 +532,6 @@ export default {
 
       if (this.showInviteModal) {
         const baseUrl = window.location.origin
-        // Generate invite link - this is just a placeholder; in a real app,
-        // you might create a unique game invitation code
         this.inviteLink = `${baseUrl}/invite?user=${this.user?.username || 'friend'}`
       }
     },
@@ -578,12 +550,10 @@ export default {
     this.inviteLink = `${window.location.origin}/invite`
   },
   beforeUnmount() {
-    // Clean up WebSocket connection only if not preserving it
     if (this.gameSocket && !this.preserveSocket) {
       this.gameSocket.close()
     }
 
-    // Clean up timers
     if (this.matchmakingTimer) {
       clearInterval(this.matchmakingTimer)
     }

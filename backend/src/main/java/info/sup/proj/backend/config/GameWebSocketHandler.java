@@ -8,8 +8,6 @@ import info.sup.proj.backend.services.PuzzleService;
 import info.sup.proj.backend.services.UserService;
 import info.sup.proj.backend.services.PuzzleSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.stereotype.Component;
@@ -793,7 +791,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         if (session.isOpen()) {
             String sessionId = session.getId();
             
-            // Create lock if it doesn't exist
             sessionLocks.putIfAbsent(sessionId, new ReentrantLock());
             ReentrantLock lock = sessionLocks.get(sessionId);
             
@@ -818,13 +815,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         sessions.remove(sessionId);
         sessionLocks.remove(sessionId);
         
-        // If application is shutting down, skip database operations
         if (applicationShuttingDown.get()) {
             System.out.println("Skipping database operations during shutdown for session: " + sessionId);
             return;
         }
         
-        // Get user ID associated with this session
         Long userId = null;
         for (Map.Entry<Long, String> entry : userToSessionMap.entrySet()) {
             if (entry.getValue().equals(sessionId)) {
@@ -834,7 +829,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             }
         }
         
-        // Regular connection closing logic continues here
         Optional.ofNullable(userId).ifPresent(uid -> {
             synchronized (waitingPlayers) {
                 waitingPlayers.removeIf(player -> player.getUserId().equals(uid));
@@ -842,7 +836,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             
             activelySearching.remove(uid);
             
-            // Find any game this user is part of
             Optional<Map.Entry<String, GameSession>> gameEntry = gameSessions.entrySet().stream()
                     .filter(entry -> 
                         entry.getValue().getPlayer1Id().equals(uid) || 

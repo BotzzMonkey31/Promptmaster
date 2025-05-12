@@ -2,12 +2,10 @@
   <div class="bg-gray-100 min-h-screen">
     <main class="container mx-auto py-8">
 
-      <!-- Game Notifications -->
       <div v-if="gameNotification" class="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded relative mb-6">
         <span v-html="gameNotification.message"></span>
       </div>
 
-      <!-- Active Game -->
       <div v-if="inGame && currentGame" class="bg-white p-6 shadow rounded-lg mb-6">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold">Game in Progress</h3>
@@ -38,7 +36,6 @@
           </div>
         </div>
 
-        <!-- Puzzle Solving Interface -->
         <div v-if="currentPuzzle && !showPuzzleButton" class="mt-6">
           <div class="flex flex-col items-stretch p-6 bg-light-50 rounded-xl shadow-lg mx-auto gap-6">
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
@@ -114,7 +111,6 @@
         </div>
       </div>
 
-      <!-- Return to Lobby -->
       <div v-if="!inGame && !showGameResults" class="text-center mt-8">
         <p class="mb-4 text-gray-600">Waiting for a game to start...</p>
         <button
@@ -125,7 +121,6 @@
         </button>
       </div>
 
-      <!-- Game Results Modal -->
       <div v-if="showGameResults && gameResults" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50"></div>
         <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md">
@@ -164,7 +159,6 @@
         </div>
       </div>
 
-      <!-- Score Popup Modal -->
       <div v-if="showScorePopup && scoreDetails" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-70"></div>
         <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
@@ -256,7 +250,6 @@ import { bracketMatching } from "@codemirror/language"
 import { closeBrackets } from "@codemirror/autocomplete"
 import { history } from "@codemirror/commands"
 
-// Add TypeScript declaration for the global gameSocketInstance
 declare global {
   interface Window {
     gameSocketInstance?: WebSocket;
@@ -345,7 +338,6 @@ export default {
     const loading = ref(true)
     const error = ref<string | null>(null)
 
-    // Puzzle solving related refs
     const currentPuzzle = ref<Puzzle | null>(null)
     const showPuzzleButton = ref(true)
     const userInput = ref('')
@@ -391,7 +383,6 @@ export default {
           user.value = response.data
           loading.value = false
 
-          // Initialize game if there's a game ID passed from the lobby
           initGameState()
         } catch (parseError) {
           console.error('Error parsing user cookie:', parseError)
@@ -406,25 +397,21 @@ export default {
     }
 
     const initGameState = () => {
-      // Check if we're given a gameId from the Lobby component
       const urlGameId = route.params.gameId as string
       if (urlGameId) {
         gameId.value = urlGameId
-        // Initialize the game with data from query params if available
         const gameData = route.query
         if (gameData && Object.keys(gameData).length > 0) {
           initGameFromParams(gameData)
         }
       }
 
-      // Initialize WebSocket connection
       initGameWebSocket()
     }
 
     const initGameFromParams = (params: any) => {
       inGame.value = true
 
-      // Initialize from URL query parameters
       currentGame.value = {
         gameId: params.gameId as string,
         opponentId: parseInt(params.opponentId as string),
@@ -439,18 +426,15 @@ export default {
         opponentScore: parseInt(params.opponentScore as string) || 0
       }
 
-      // Start the timer
       timeRemaining.value = currentGame.value.timePerRound
       startTimer()
     }
 
     const initGameWebSocket = () => {
-      // First check if there's an existing socket instance from Lobby.vue
       if (window.gameSocketInstance && window.gameSocketInstance.readyState === WebSocket.OPEN) {
         console.log('Reusing existing WebSocket connection from Lobby')
         gameSocket.value = window.gameSocketInstance
 
-        // Set up event handlers for the shared socket
         setupSocketEventHandlers()
         return
       }
@@ -460,7 +444,6 @@ export default {
         return
       }
 
-      // Close previous socket if it exists
       if (gameSocket.value) {
         gameSocket.value.close()
       }
@@ -470,20 +453,17 @@ export default {
 
       gameSocket.value.onopen = () => {
         console.log('Game WebSocket connection established')
-        // Store the socket instance globally for potential reuse
         if (gameSocket.value) {
           window.gameSocketInstance = gameSocket.value
         }
       }
 
-      // Set up event handlers
       setupSocketEventHandlers()
     }
 
     const handleGameMessage = (message: any) => {
       console.log('Game message received:', message)
 
-      // Only process messages meant for this user
       if (message.userId && message.userId !== user.value?.id) {
         console.log('Message not for this user, ignoring')
         return
@@ -516,14 +496,12 @@ export default {
       }
     }
 
-    // New function to handle puzzle loaded messages
     const handlePuzzleLoaded = (message: any) => {
       try {
         const puzzleData = JSON.parse(message.content)
         currentPuzzle.value = puzzleData
         showPuzzleButton.value = false
 
-        // Initialize the editor with the puzzle code
         code.value = puzzleData.code || ''
         initializeEditor()
 
@@ -537,17 +515,14 @@ export default {
       showNotification('info', message.content || "No opponent found. Returning to lobby...")
       console.log("NO_OPPONENT message received, returning to lobby")
 
-      // Stop any timers
       if (timerInterval.value) {
         clearInterval(timerInterval.value)
         timerInterval.value = null
       }
 
-      // Reset game state
       inGame.value = false
       currentGame.value = null
 
-      // Add a slight delay before redirecting back to lobby
       setTimeout(() => {
         router.push('/vs')
       }, 2000)
@@ -557,7 +532,6 @@ export default {
       try {
         const gameData = JSON.parse(message.content)
 
-        // Set up the new game
         inGame.value = true
         currentGame.value = {
           gameId: gameData.gameId,
@@ -573,11 +547,9 @@ export default {
           opponentScore: 0
         }
 
-        // Start the countdown timer
         timeRemaining.value = gameData.timePerRound
         startTimer()
 
-        // Show game start notification
         showNotification('success', `Game started! You're playing against ${gameData.opponentName}.`)
       } catch (e) {
         console.error('Error handling game start:', e)
@@ -598,18 +570,14 @@ export default {
         const roundData = JSON.parse(message.content)
 
         if (currentGame.value) {
-          // Update scores
           currentGame.value.yourScore = roundData.yourScore
           currentGame.value.opponentScore = roundData.opponentScore
 
-          // Go to next round
           currentGame.value.currentRound = roundData.nextRound
           currentGame.value.currentPuzzleId = roundData.nextPuzzleId
 
-          // Reset timer
           timeRemaining.value = currentGame.value.timePerRound
 
-          // Reset puzzle state
           currentPuzzle.value = null
           showPuzzleButton.value = true
 
@@ -624,13 +592,11 @@ export default {
       try {
         const gameOverData = JSON.parse(message.content)
 
-        // Stop the timer
         if (timerInterval.value) {
           clearInterval(timerInterval.value)
           timerInterval.value = null
         }
 
-        // Set game results data
         gameResults.value = {
           gameId: gameOverData.gameId,
           result: gameOverData.result,
@@ -639,7 +605,6 @@ export default {
           eloChange: gameOverData.eloChange
         }
 
-        // Show the game results modal
         showGameResults.value = true
         inGame.value = false
 
@@ -662,13 +627,12 @@ export default {
         if (timeRemaining.value > 0) {
           timeRemaining.value--
         } else {
-          // Time's up, auto-forfeit the round
           if (timerInterval.value) {
             clearInterval(timerInterval.value)
             timerInterval.value = null
           }
 
-          submitSolution(true) // true indicates time expired
+          submitSolution(true)
         }
       }, 1000)
     }
@@ -682,7 +646,6 @@ export default {
     const showNotification = (type: string, message: string) => {
       gameNotification.value = { type, message }
 
-      // Auto-hide notification after 5 seconds
       setTimeout(() => {
         if (gameNotification.value?.message === message) {
           gameNotification.value = null
@@ -699,7 +662,6 @@ export default {
           userId: user.value.id
         })
 
-        // The response will come through the WebSocket
       } catch (e) {
         console.error('Error forfeiting game:', e)
         showNotification('error', 'Failed to forfeit game')
@@ -716,7 +678,6 @@ export default {
       router.push('/vs')
     }
 
-    // Puzzle solving functionality
     const loadPuzzle = async () => {
       if (!currentGame.value || !currentGame.value.currentPuzzleId) return
 
@@ -725,7 +686,6 @@ export default {
         currentPuzzle.value = puzzleResponse.data
         showPuzzleButton.value = false
 
-        // Initialize the editor with the puzzle code
         code.value = currentPuzzle.value?.code || ''
         initializeEditor()
       } catch (e) {
@@ -735,7 +695,6 @@ export default {
     }
 
     const initializeEditor = () => {
-      // Wait for the next tick to ensure the DOM is updated
       setTimeout(() => {
         if (editorDiv.value && !editor.value) {
           editor.value = new EditorView({
@@ -817,7 +776,6 @@ export default {
         if (response.data.success) {
           textBubble.value = "Congratulations! You've completed this puzzle! 🎉"
 
-          // Process score details
           scoreDetails.value = {
             totalScore: response.data.scoreDetails.totalScore || 0,
             timeScore: response.data.scoreDetails.timeScore || 0,
@@ -832,7 +790,6 @@ export default {
 
           showScorePopup.value = true
 
-          // Submit solution to the game server
           submitSolution(false)
         }
       } catch (error) {
@@ -861,7 +818,6 @@ export default {
           timeExpired: timeExpired
         })
 
-        // The response will come through the WebSocket
       } catch (e) {
         console.error('Error submitting solution:', e)
         showNotification('error', 'Failed to submit solution')
@@ -879,27 +835,21 @@ export default {
     onMounted(() => {
       loadUserData()
 
-      // Check if we're coming from lobby with a preserved connection
       const preserveConnection = route.query.preserveConnection === 'true'
 
-      // If this flag is true, we should look for an existing connection from parent component
       if (preserveConnection && window.gameSocketInstance) {
         console.log('Reusing existing WebSocket connection from Lobby')
         gameSocket.value = window.gameSocketInstance
         preserveSocket.value = true
 
-        // Set up event handlers for the existing socket
         setupSocketEventHandlers()
 
-        // Join the game with the existing socket
         joinGame()
       } else {
-        // No preserved connection, create a new one
         initGameWebSocket()
       }
     })
 
-    // Add a function to set up WebSocket event handlers
     const setupSocketEventHandlers = () => {
       if (!gameSocket.value) return
 
@@ -911,7 +861,6 @@ export default {
 
       gameSocket.value.onclose = () => {
         console.log('Game WebSocket connection closed')
-        // Only attempt to reconnect if the component is still mounted
         if (!preserveSocket.value) {
           setTimeout(() => initGameWebSocket(), 5000)
         }
@@ -922,7 +871,6 @@ export default {
       }
     }
 
-    // Function to join a game
     const joinGame = () => {
       if (!gameSocket.value || gameSocket.value.readyState !== WebSocket.OPEN || !user.value?.id) {
         console.error('Cannot join game - WebSocket not open or user ID missing')
@@ -949,12 +897,10 @@ export default {
         timerInterval.value = null
       }
 
-      // Only close the WebSocket if we're not preserving it
       if (gameSocket.value && !preserveSocket.value) {
         gameSocket.value.close()
         gameSocket.value = null
 
-        // Only remove the global instance if we're not preserving it
         if (window.gameSocketInstance && !preserveSocket.value) {
           delete window.gameSocketInstance
         }
@@ -982,13 +928,12 @@ export default {
       returnToLobby,
       goToPuzzle,
 
-      // Puzzle solving related
       currentPuzzle,
       showPuzzleButton,
       userInput,
       code,
       textBubble,
-      editorDiv, // Properly return the editorDiv ref
+      editorDiv,
       isSubmitting,
       showScorePopup,
       scoreDetails,
