@@ -121,6 +121,14 @@ import Cookies from 'js-cookie'
 import ChatBox from '../components/ChatBox.vue'
 import apiClient from '../services/api'
 import { useRouter } from 'vue-router'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+
+// Add type declaration for gameSocketInstance on Window interface
+declare global {
+  interface Window {
+    gameSocketInstance?: WebSocket;
+  }
+}
 
 interface RankThreshold {
   rank: string
@@ -170,7 +178,6 @@ export default {
   components: { ChatBox },
   setup() {
     const router = useRouter()
-
     return { router }
   },
   data() {
@@ -187,7 +194,10 @@ export default {
       inviteLink: '',
       linkCopied: false,
       challengerId: null as number | null,
-      defaultAvatar: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'
+      defaultAvatar: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+      preserveSocket: false, // Add this flag to control socket preservation
+      matchmakingTimer: null as number | null, // Changed from NodeJS.Timeout to number
+      transitioningToGame: false // Move from setup() to data()
     }
   },
   computed: {
@@ -376,18 +386,40 @@ export default {
       this.showNotification('info', `Challenge sent to ${player.username}. Waiting for response...`)
       this.gameSocket.send(JSON.stringify(message))
     },
-    acceptChallenge() {
-      if (!this.gameSocket || !this.user?.id || !this.challengerId) return
-
+    async acceptChallenge() {
       const message = {
         type: 'ACCEPT_CHALLENGE',
-        content: this.challengerId.toString(),
-        userId: this.user.id
+        content: JSON.stringify({
+          challengerId: this.challengerId
+        })
       }
 
-      this.gameSocket.send(JSON.stringify(message))
-      this.gameNotification = null
-      this.challengerId = null
+      if (this.gameSocket && this.gameSocket.readyState === WebSocket.OPEN) {
+        // Set the transition flag
+        this.transitioningToGame = true
+
+        // Set the preserve flag to true so the socket doesn't get closed
+        this.preserveSocket = true
+
+        // Store the socket instance in the window object for the Game component to use
+        if (this.gameSocket) {
+          window.gameSocketInstance = this.gameSocket
+        }
+
+        // Send the accept message
+        this.gameSocket.send(JSON.stringify(message))
+
+        // Navigate to the game view with a flag to preserve the connection
+        this.router.push({
+          path: '/game',
+          query: {
+            preserveConnection: 'true',
+            gameId: this.gameNotification?.data?.gameId
+          }
+        })
+      } else {
+        this.error = 'WebSocket connection is not available'
+      }
     },
     rejectChallenge() {
       if (!this.gameSocket || !this.user?.id || !this.challengerId) return
@@ -475,15 +507,31 @@ export default {
     },
     handleGameStarted(message: any) {
       try {
-        // Reset states
-        this.findingOpponent = false
-        this.challengingSomeone = false
-
-        // Navigate to the game view with game data
         const gameData = JSON.parse(message.content)
+        // Store the socket instance globally so Game.vue can use it
+        if (this.gameSocket) {
+          window.gameSocketInstance = this.gameSocket
+        }
+
+        // Set flag to preserve socket connection when transitioning
+
+        // Set flag to preserve socket connection when transitioning
+        this.preserveSocket = true
+
+        // Navigate to game view with necessary data - fixed to use params instead of incorporating gameId in the path
         this.$router.push({
-          path: '/game',
-          query: gameData
+          name: 'game',  // Use named route instead of path with parameter
+          params: { gameId: gameData.gameId }, // This will be properly set as a route param
+          query: {
+            opponentId: gameData.opponentId,
+            opponentName: gameData.opponentName,
+            opponentPicture: gameData.opponentPicture,
+            opponentElo: gameData.opponentElo,
+            rounds: gameData.rounds,
+            currentRound: gameData.currentRound,
+            currentPuzzleId: gameData.currentPuzzleId,
+            timePerRound: gameData.timePerRound,
+          }
         })
       } catch (e) {
         console.error('Error handling game start:', e)
@@ -530,13 +578,16 @@ export default {
     this.inviteLink = `${window.location.origin}/invite`
   },
   beforeUnmount() {
-    // Clean up on component destruction
-    this.leaveLobby()
-
-    if (this.gameSocket) {
+    // Clean up WebSocket connection only if not preserving it
+    if (this.gameSocket && !this.preserveSocket) {
       this.gameSocket.close()
     }
-  }
+
+    // Clean up timers
+    if (this.matchmakingTimer) {
+      clearInterval(this.matchmakingTimer)
+    }
+  },
 }
 </script>
 

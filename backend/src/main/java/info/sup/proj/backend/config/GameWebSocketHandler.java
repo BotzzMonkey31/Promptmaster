@@ -8,6 +8,10 @@ import info.sup.proj.backend.services.PuzzleService;
 import info.sup.proj.backend.services.UserService;
 import info.sup.proj.backend.services.PuzzleSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEvent;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -20,21 +24,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Interface for handling game timer events
- */
 interface GameTimerHandler {
     void handleRoundTimeout(String gameId, int currentRound) throws IOException;
 }
 
 @Component
-public class GameWebSocketHandler extends TextWebSocketHandler implements GameTimerHandler {
+public class GameWebSocketHandler extends TextWebSocketHandler implements GameTimerHandler, ApplicationListener<ContextClosedEvent> {
     private static final ConcurrentHashMap<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, GameSession> gameSessions = new ConcurrentHashMap<>();
     private static final Map<Long, String> userToSessionMap = new HashMap<>();
     private static final List<GamePlayer> waitingPlayers = new ArrayList<>();
     private final Set<Long> activelySearching = new HashSet<>();
+    private final AtomicBoolean applicationShuttingDown = new AtomicBoolean(false);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -44,10 +49,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
     @Autowired
     private UserService userService;
 
-    // This might be used in future functionality
     @SuppressWarnings("unused")
     @Autowired
     private PuzzleSessionService puzzleSessionService;
+    
+    @Override
+    public void onApplicationEvent(ContextClosedEvent event) {
+        applicationShuttingDown.set(true);
+        System.out.println("Application shutdown detected in GameWebSocketHandler");
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -89,18 +99,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         }
     }
 
-    // Implement the GameTimerHandler interface
     @Override
     public void handleRoundTimeout(String gameId, int currentRound) throws IOException {
         GameSession gameSession = gameSessions.get(gameId);
         if (gameSession != null) {
-            // Check if both players have submitted for this round
             if (gameSession.bothPlayersSubmitted()) {
-                // Already handled by submission logic
                 return;
             }
 
-            // Force add zero scores for players who haven't submitted
             if (gameSession.getPlayer1Scores().size() < currentRound) {
                 gameSession.addPlayer1Score(0);
             }
@@ -109,7 +115,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
                 gameSession.addPlayer2Score(0);
             }
 
-            // Move to next round or end the game
             if (currentRound < 3) {
                 gameSession.nextRound();
                 notifyRoundComplete(gameSession);
@@ -122,16 +127,13 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
     private void handleJoinLobby(WebSocketSession session, GameMessage message) throws IOException {
         Long userId = message.getUserId();
 
-        // Add user to waiting players list if not already there
         if (userToSessionMap.containsKey(userId)) {
-            // Already connected, update the session
             String existingSessionId = userToSessionMap.get(userId);
             sessions.remove(existingSessionId);
         }
 
         userToSessionMap.put(userId, session.getId());
 
-        // Check if player is already in waiting list
         boolean playerExists = waitingPlayers.stream()
             .anyMatch(player -> player.getUserId().equals(userId));
 
@@ -149,7 +151,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             waitingPlayers.add(player);
         }
 
-        // Send the current list of available players to the user
         List<Map<String, Object>> availablePlayers = waitingPlayers.stream()
             .filter(player -> !player.getUserId().equals(userId))
             .map(GamePlayer::toMap)
@@ -163,7 +164,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
 
         sendMessageToSession(session, responseMessage);
 
-        // Notify other players that a new player joined
         broadcastLobbyUpdate();
     }
 
@@ -173,7 +173,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         userToSessionMap.remove(userId);
         activelySearching.remove(userId);
 
-        // Notify other players
         broadcastLobbyUpdate();
     }
 
@@ -182,14 +181,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         User user = userService.getUserById(userId)
             .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // Mark this player as actively searching
         activelySearching.add(userId);
 
-        // Set a timeout task to automatically send NO_OPPONENT message after 14 seconds if no match is found
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.schedule(() -> {
             try {
-                // If player is still in the activelySearching list, send NO_OPPONENT message
                 if (activelySearching.contains(userId)) {
                     activelySearching.remove(userId);
                     GameMessage timeoutMessage = new GameMessage(
@@ -208,26 +204,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             }
         }, 14, TimeUnit.SECONDS);
 
-        // Enhanced opponent matching with more parameters
         try {
             Map<String, Object> preferences = new HashMap<>();
             if (!message.getContent().isEmpty()) {
                 preferences = objectMapper.readValue(message.getContent(), Map.class);
             }
 
-            // Get matching preferences or use defaults
             int eloRange = preferences.containsKey("eloRange") ?
                            (int) preferences.get("eloRange") : 200;
 
             boolean strictMatching = preferences.containsKey("strictMatching") ?
                                    (boolean) preferences.get("strictMatching") : false;
 
-            // Find suitable opponent based on preferences
             int userElo = user.getElo();
             GamePlayer opponent = null;
 
             if (strictMatching) {
-                // Strict matching - use exact preferences
                 Optional<GamePlayer> potentialOpponent = waitingPlayers.stream()
                     .filter(player -> !player.getUserId().equals(userId) &&
                                      Math.abs(player.getElo() - userElo) <= eloRange &&
@@ -239,7 +231,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
                     opponent = potentialOpponent.get();
                 }
             } else {
-                // Progressive matching - gradually increase range
                 int currentEloRange = eloRange;
                 while (currentEloRange <= 1000 && opponent == null) {
                     int finalEloRange = currentEloRange;
@@ -255,22 +246,18 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
                         break;
                     }
 
-                    currentEloRange += eloRange; // Gradually increase the range
+                    currentEloRange += eloRange;
                 }
             }
 
             if (opponent != null) {
-                // Found an opponent, start a game
                 startGame(userId, opponent.getUserId());
 
-                // Remove both players from actively searching list
                 activelySearching.remove(userId);
                 activelySearching.remove(opponent.getUserId());
 
-                // Cancel the timeout scheduler
                 scheduler.shutdownNow();
 
-                // Log match details
                 System.out.println("Match found: " + user.getUsername() + " (ELO: " + userElo +
                                   ") vs " + opponent.getUsername() + " (ELO: " + opponent.getElo() + ")");
             }
@@ -278,11 +265,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             System.err.println("Error in find opponent logic: " + e.getMessage());
             e.printStackTrace();
 
-            // Clean up on error
             activelySearching.remove(userId);
             scheduler.shutdownNow();
 
-            // Notify user of error
             GameMessage errorMessage = new GameMessage(
                 "ERROR",
                 "An error occurred while finding an opponent. Please try again.",
@@ -292,7 +277,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         }
     }
 
-    // Simple fallback method for finding opponents
     private void findOpponentSimple(WebSocketSession session, Long userId, int userElo) throws IOException {
         GamePlayer opponent = null;
         int eloRange = 200;
@@ -315,14 +299,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         }
 
         if (opponent != null) {
-            // Found an opponent, start a game
             startGame(userId, opponent.getUserId());
 
-            // Remove both players from actively searching list
             activelySearching.remove(userId);
             activelySearching.remove(opponent.getUserId());
         } else {
-            // No opponent found
             GameMessage responseMessage = new GameMessage(
                 "NO_OPPONENT",
                 "No suitable opponent found. Please try again later.",
@@ -336,17 +317,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         Long challengerId = message.getUserId();
         Long challengedId = Long.parseLong(message.getContent());
 
-        // Get the challenged player's session
         String challengedSessionId = userToSessionMap.get(challengedId);
         if (challengedSessionId != null) {
             WebSocketSession challengedSession = sessions.get(challengedSessionId);
 
             if (challengedSession != null && challengedSession.isOpen()) {
-                // Get challenger info
                 User challenger = userService.getUserById(challengerId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-                // Send challenge to challenged player
                 Map<String, Object> challengeInfo = new HashMap<>();
                 challengeInfo.put("challengerId", challengerId);
                 challengeInfo.put("challengerName", challenger.getUsername());
@@ -361,7 +339,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
 
                 sendMessageToSession(challengedSession, challengeMessage);
 
-                // Send confirmation to challenger
                 GameMessage confirmMessage = new GameMessage(
                     "CHALLENGE_SENT",
                     "Challenge sent successfully",
@@ -373,7 +350,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             }
         }
 
-        // If we get here, the challenged player is not available
         GameMessage errorMessage = new GameMessage(
             "ERROR",
             "The player you challenged is no longer available",
@@ -389,7 +365,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
 
         System.out.println("Challenge accepted: User " + accepterId + " accepted challenge from " + challengerId);
 
-        // Validate both players are available
         String challengerSessionId = userToSessionMap.get(challengerId);
         String accepterSessionId = userToSessionMap.get(accepterId);
 
@@ -416,7 +391,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             return;
         }
 
-        // Start a game between these two players
         try {
             startGame(challengerId, accepterId);
         } catch (Exception e) {
@@ -430,7 +404,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             );
             sendMessageToSession(session, errorMessage);
 
-            // Also notify the challenger
             GameMessage challengerErrorMessage = new GameMessage(
                 "ERROR",
                 "Failed to start game: " + e.getMessage(),
@@ -444,17 +417,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         Long rejecterId = message.getUserId();
         Long challengerId = Long.parseLong(message.getContent());
 
-        // Get challenger session
         String challengerSessionId = userToSessionMap.get(challengerId);
         if (challengerSessionId != null) {
             WebSocketSession challengerSession = sessions.get(challengerSessionId);
 
             if (challengerSession != null && challengerSession.isOpen()) {
-                // Get rejector info
                 User rejector = userService.getUserById(rejecterId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-                // Send rejection notification
                 GameMessage rejectionMessage = new GameMessage(
                     "CHALLENGE_REJECTED",
                     rejector.getUsername() + " declined your challenge",
@@ -467,15 +437,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
     }
 
     private void startGame(Long player1Id, Long player2Id) throws IOException {
-        // Create a new game session
         String gameId = UUID.randomUUID().toString();
 
-        // Mark players as in-game
         waitingPlayers.stream()
             .filter(p -> p.getUserId().equals(player1Id) || p.getUserId().equals(player2Id))
             .forEach(p -> p.setInGame(true));
 
-        // Select 3 random Multi_Step puzzles
         List<Puzzle> allPuzzles = puzzleService.getPuzzlesByType(Puzzle.Type.Multi_Step);
         List<Puzzle> selectedPuzzles = new ArrayList<>();
 
@@ -483,7 +450,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             Collections.shuffle(allPuzzles);
             selectedPuzzles = allPuzzles.subList(0, 3);
         } else {
-            // Not enough puzzles, use what we have and possibly repeat
             while (selectedPuzzles.size() < 3) {
                 selectedPuzzles.addAll(allPuzzles);
             }
@@ -492,7 +458,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             }
         }
 
-        // Create game session
         GameSession gameSession = new GameSession(
             gameId,
             player1Id,
@@ -503,20 +468,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
 
         gameSessions.put(gameId, gameSession);
 
-        // Get player sessions
         String player1SessionId = userToSessionMap.get(player1Id);
         String player2SessionId = userToSessionMap.get(player2Id);
 
         WebSocketSession player1Session = sessions.get(player1SessionId);
         WebSocketSession player2Session = sessions.get(player2SessionId);
 
-        // Get user info
         User player1 = userService.getUserById(player1Id)
             .orElseThrow(() -> new IllegalArgumentException("User not found"));
         User player2 = userService.getUserById(player2Id)
             .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // Send game start messages to both players with opponent info
         Map<String, Object> player1Info = new HashMap<>();
         player1Info.put("gameId", gameId);
         player1Info.put("opponentId", player2Id);
@@ -526,7 +488,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         player1Info.put("rounds", 3);
         player1Info.put("currentRound", 1);
         player1Info.put("currentPuzzleId", gameSession.getCurrentPuzzleId());
-        player1Info.put("timePerRound", 300); // 5 minutes per puzzle
+        player1Info.put("timePerRound", 300);
 
         Map<String, Object> player2Info = new HashMap<>();
         player2Info.put("gameId", gameId);
@@ -537,7 +499,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         player2Info.put("rounds", 3);
         player2Info.put("currentRound", 1);
         player2Info.put("currentPuzzleId", gameSession.getCurrentPuzzleId());
-        player2Info.put("timePerRound", 300); // 5 minutes per puzzle
+        player2Info.put("timePerRound", 300);
 
         GameMessage player1Message = new GameMessage(
             "GAME_STARTED",
@@ -559,10 +521,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             sendMessageToSession(player2Session, player2Message);
         }
 
-        // Start countdown for both players
         gameSession.startRound();
 
-        // Broadcast lobby update since players are now in a game
         broadcastLobbyUpdate();
     }
 
@@ -581,31 +541,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             return;
         }
 
-        // Calculate score based on solution quality and time taken
         int score = calculateScore(solution, gameSession.getCurrentPuzzleId(), userId);
 
-        // Record the score for this round
         if (userId.equals(gameSession.getPlayer1Id())) {
             gameSession.addPlayer1Score(score);
         } else if (userId.equals(gameSession.getPlayer2Id())) {
             gameSession.addPlayer2Score(score);
         }
 
-        // Check if both players have submitted for this round
         if (gameSession.bothPlayersSubmitted()) {
-            // Move to next round or end the game
             if (gameSession.getCurrentRound() < 3) {
-                // Next round
                 gameSession.nextRound();
 
-                // Notify both players
                 notifyRoundComplete(gameSession);
             } else {
-                // Game complete
                 endGame(gameSession);
             }
         } else {
-            // Just notify the current player of their submission
             Map<String, Object> resultData = new HashMap<>();
             resultData.put("score", score);
             resultData.put("message", "Solution submitted. Waiting for opponent...");
@@ -621,21 +573,16 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
     }
 
     private int calculateScore(String solution, int puzzleId, Long userId) {
-        // Base score calculation - in a real implementation, you'd have more sophisticated scoring
-        int baseScore = 50; // Base score for submitting something
+        int baseScore = 50;
 
-        // Calculate additional score based on solution quality
-        // This is a simple placeholder - in a real implementation, you'd analyze the solution
         int qualityScore = solution.length() > 10 ? 30 : 10;
 
-        // Time-based score (faster = more points)
-        int timeScore = 20; // Default time score
+        int timeScore = 20;
 
         return baseScore + qualityScore + timeScore;
     }
 
     private void notifyRoundComplete(GameSession gameSession) throws IOException {
-        // Get the current scores
         Map<String, Object> player1Data = new HashMap<>();
         player1Data.put("gameId", gameSession.getGameId());
         player1Data.put("currentRound", gameSession.getCurrentRound());
@@ -665,12 +612,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         sendMessageToUser(gameSession.getPlayer1Id(), player1Message);
         sendMessageToUser(gameSession.getPlayer2Id(), player2Message);
 
-        // Start the next round
         gameSession.startRound();
     }
 
     private void endGame(GameSession gameSession) throws IOException {
-        // Determine winner and update ELO
         int player1Score = gameSession.getPlayer1TotalScore();
         int player2Score = gameSession.getPlayer2TotalScore();
 
@@ -688,7 +633,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             isDraw = true;
         }
 
-        // Calculate ELO changes
         int eloChange = 0;
         if (!isDraw) {
             User winner = userService.getUserById(winnerId).orElse(null);
@@ -698,17 +642,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
                 int winnerElo = winner.getElo();
                 int loserElo = loser.getElo();
 
-                // Simple ELO calculation
                 int expectedOutcome = 1 / (1 + (int)Math.pow(10, (loserElo - winnerElo) / 400.0));
                 eloChange = 32 * (1 - expectedOutcome);
 
-                // Update ELOs
                 userService.updateUserElo(winnerId, eloChange);
                 userService.updateUserElo(loserId, -eloChange);
             }
         }
 
-        // Prepare end game messages
         Map<String, Object> player1Data = new HashMap<>();
         player1Data.put("gameId", gameSession.getGameId());
         player1Data.put("yourScore", player1Score);
@@ -738,21 +679,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         sendMessageToUser(gameSession.getPlayer1Id(), player1Message);
         sendMessageToUser(gameSession.getPlayer2Id(), player2Message);
 
-        // Clean up game resources
         gameSessions.remove(gameSession.getGameId());
 
-        // Update player statuses to not in game
         waitingPlayers.stream()
             .filter(p -> p.getUserId().equals(gameSession.getPlayer1Id()) ||
                         p.getUserId().equals(gameSession.getPlayer2Id()))
             .forEach(p -> p.setInGame(false));
 
-        // Broadcast lobby update
         broadcastLobbyUpdate();
     }
 
     private void handleGameAction(WebSocketSession session, GameMessage message) throws IOException {
-        // Handle in-game actions like giving up, requesting time, etc.
         @SuppressWarnings("unchecked")
         Map<String, Object> actionData = objectMapper.readValue(message.getContent(), Map.class);
 
@@ -766,25 +703,20 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             return;
         }
 
-        // Handle different actions
         switch (action) {
             case "FORFEIT":
                 handleForfeit(gameSession, message.getUserId());
                 break;
-            // Add other actions as needed
         }
     }
 
     private void handleForfeit(GameSession gameSession, Long forfeittingUserId) throws IOException {
-        // Determine the winner
         Long winnerId = gameSession.getPlayer1Id().equals(forfeittingUserId) ?
             gameSession.getPlayer2Id() : gameSession.getPlayer1Id();
 
-        // Update ELO
         userService.updateUserElo(winnerId, 25);
         userService.updateUserElo(forfeittingUserId, -25);
 
-        // Send messages to both players
         Map<String, Object> winnerData = new HashMap<>();
         winnerData.put("gameId", gameSession.getGameId());
         winnerData.put("result", "WIN_BY_FORFEIT");
@@ -810,21 +742,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
         sendMessageToUser(winnerId, winnerMessage);
         sendMessageToUser(forfeittingUserId, loserMessage);
 
-        // Clean up game resources
         gameSessions.remove(gameSession.getGameId());
 
-        // Update player statuses
         waitingPlayers.stream()
             .filter(p -> p.getUserId().equals(gameSession.getPlayer1Id()) ||
                        p.getUserId().equals(gameSession.getPlayer2Id()))
             .forEach(p -> p.setInGame(false));
 
-        // Broadcast lobby update
         broadcastLobbyUpdate();
     }
 
     private void broadcastLobbyUpdate() {
-        // Send an updated player list to everyone in the lobby
         List<Map<String, Object>> availablePlayers = waitingPlayers.stream()
             .filter(player -> !player.isInGame())
             .map(GamePlayer::toMap)
@@ -863,47 +791,79 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
 
     private void sendMessageToSession(WebSocketSession session, GameMessage message) throws IOException {
         if (session.isOpen()) {
-            String jsonMessage = objectMapper.writeValueAsString(message);
-            session.sendMessage(new TextMessage(jsonMessage));
+            String sessionId = session.getId();
+            
+            // Create lock if it doesn't exist
+            sessionLocks.putIfAbsent(sessionId, new ReentrantLock());
+            ReentrantLock lock = sessionLocks.get(sessionId);
+            
+            lock.lock();
+            try {
+                String jsonMessage = objectMapper.writeValueAsString(message);
+                synchronized (session) {
+                    session.sendMessage(new TextMessage(jsonMessage));
+                }
+            } catch (IOException e) {
+                System.err.println("Error sending message to session " + sessionId + ": " + e.getMessage());
+                throw e;
+            } finally {
+                lock.unlock();
+            }
         }
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        // Clean up session
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String sessionId = session.getId();
         sessions.remove(sessionId);
-
-        // Find and remove the user from waiting list
-        Optional<GamePlayer> player = waitingPlayers.stream()
-            .filter(p -> p.getSessionId().equals(sessionId))
-            .findFirst();
-
-        player.ifPresent(p -> {
-            waitingPlayers.remove(p);
-            userToSessionMap.remove(p.getUserId());
-            activelySearching.remove(p.getUserId());
-
-            // If player was in a game, handle forfeit
-            for (GameSession gameSession : gameSessions.values()) {
-                if (gameSession.getPlayer1Id().equals(p.getUserId()) ||
-                    gameSession.getPlayer2Id().equals(p.getUserId())) {
-                    try {
-                        handleForfeit(gameSession, p.getUserId());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    break;
-                }
+        sessionLocks.remove(sessionId);
+        
+        // If application is shutting down, skip database operations
+        if (applicationShuttingDown.get()) {
+            System.out.println("Skipping database operations during shutdown for session: " + sessionId);
+            return;
+        }
+        
+        // Get user ID associated with this session
+        Long userId = null;
+        for (Map.Entry<Long, String> entry : userToSessionMap.entrySet()) {
+            if (entry.getValue().equals(sessionId)) {
+                userId = entry.getKey();
+                userToSessionMap.remove(userId);
+                break;
             }
-
-            // Broadcast lobby update
-            broadcastLobbyUpdate();
+        }
+        
+        // Regular connection closing logic continues here
+        Optional.ofNullable(userId).ifPresent(uid -> {
+            synchronized (waitingPlayers) {
+                waitingPlayers.removeIf(player -> player.getUserId().equals(uid));
+            }
+            
+            activelySearching.remove(uid);
+            
+            // Find any game this user is part of
+            Optional<Map.Entry<String, GameSession>> gameEntry = gameSessions.entrySet().stream()
+                    .filter(entry -> 
+                        entry.getValue().getPlayer1Id().equals(uid) || 
+                        entry.getValue().getPlayer2Id().equals(uid))
+                    .findFirst();
+            
+            gameEntry.ifPresent(entry -> {
+                String gameId = entry.getKey();
+                GameSession game = entry.getValue();
+                
+                try {
+                    handleForfeit(game, uid);
+                } catch (Exception e) {
+                    System.err.println("Error handling forfeit during connection close: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
         });
     }
 }
 
-// Separate static classes
 class GamePlayer {
     private final Long userId;
     private final String username;
@@ -965,7 +925,6 @@ class GameSession {
     public List<Integer> getPlayer2Scores() { return player2Scores; }
 
     public int getCurrentPuzzleId() {
-        // If currentRound is 0, return the first puzzle
         if (currentRound <= 0 && !puzzleIds.isEmpty()) {
             return puzzleIds.get(0);
         }
@@ -977,12 +936,10 @@ class GameSession {
             currentRound++;
         }
 
-        // Reset previous timer if exists
         if (timer != null) {
             timer.cancel();
         }
 
-        // Set up a new timer for this round - 5 minutes
         timer = new Timer();
         final int roundNumber = currentRound;
         final String gameSessionId = gameId;
@@ -990,14 +947,13 @@ class GameSession {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                // Time's up for this round
                 try {
                     timerHandler.handleRoundTimeout(gameSessionId, roundNumber);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
-        }, 300000); // 300000 ms = 5 minutes
+        }, 300000);
     }
 
     public void nextRound() {
@@ -1005,7 +961,6 @@ class GameSession {
             timer.cancel();
         }
 
-        // Start the next round
         if (currentRound < 3) {
             startRound();
         }
@@ -1013,26 +968,24 @@ class GameSession {
 
     public void addPlayer1Score(int score) {
         while (player1Scores.size() < currentRound - 1) {
-            player1Scores.add(0); // Fill any missing previous scores with 0
+            player1Scores.add(0);
         }
 
         if (player1Scores.size() < currentRound) {
             player1Scores.add(score);
         } else {
-            // Replace the score for the current round
             player1Scores.set(currentRound - 1, score);
         }
     }
 
     public void addPlayer2Score(int score) {
         while (player2Scores.size() < currentRound - 1) {
-            player2Scores.add(0); // Fill any missing previous scores with 0
+            player2Scores.add(0);
         }
 
         if (player2Scores.size() < currentRound) {
             player2Scores.add(score);
         } else {
-            // Replace the score for the current round
             player2Scores.set(currentRound - 1, score);
         }
     }

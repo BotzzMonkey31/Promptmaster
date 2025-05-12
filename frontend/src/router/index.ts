@@ -53,9 +53,10 @@ const router = createRouter({
       component: Lobby,
     },
     {
-      path: '/game',
+      path: '/game/:gameId?',  // Make gameId an optional parameter
       name: 'game',
       component: Game,
+      props: true,  // Pass route.params as component props
     },
     {
       path: '/signup',
