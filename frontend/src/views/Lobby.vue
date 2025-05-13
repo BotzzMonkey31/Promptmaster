@@ -54,12 +54,12 @@
 
       <div class="bg-white p-6 shadow rounded-lg mb-6">
         <h3 class="text-lg font-semibold mb-4">Available Players</h3>
-        <div v-if="players.length === 0" class="text-gray-500 text-center py-4">
+        <div v-if="availablePlayers.length === 0" class="text-gray-500 text-center py-4">
           No players are currently available.
         </div>
         <ul v-else>
           <li
-            v-for="player in players"
+            v-for="player in availablePlayers"
             :key="player.userId"
             class="flex justify-between items-center py-3 border-b"
           >
@@ -117,12 +117,7 @@ import ChatBox from '../components/ChatBox.vue'
 import apiClient from '../services/api'
 import { useRouter } from 'vue-router'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-
-declare global {
-  interface Window {
-    gameSocketInstance?: WebSocket;
-  }
-}
+import { Client } from '@stomp/stompjs'
 
 interface RankThreshold {
   rank: string
@@ -180,7 +175,7 @@ export default {
       user: null as User | null,
       loading: true,
       error: null as string | null,
-      gameSocket: null as WebSocket | null,
+      stompClient: null as Client | null,
       gameNotification: null as GameNotification | null,
       challengingSomeone: false,
       findingOpponent: false,
@@ -195,367 +190,359 @@ export default {
     }
   },
   computed: {
-    currentRank(): string {
-      if (!this.user) return 'UNRANKED'
-      const rank = rankThresholds.find((r) => this.user!.elo >= r.min && this.user!.elo <= r.max)
-      return rank ? rank.rank : 'PROMPTMASTER'
+    currentRank() {
+      if (!this.user) return 'UNRANKED';
+      const elo = this.user.elo;
+      return rankThresholds.find(t => elo >= t.min && elo <= t.max)?.rank || 'UNRANKED';
     },
-    progressToNextRank(): number {
-      if (!this.user) return 0
-      const currentRank = rankThresholds.find(
-        (r) => this.user!.elo >= r.min && this.user!.elo <= r.max,
-      )
-      if (!currentRank) return 100
+    progressToNextRank() {
+      if (!this.user) return 0;
+      const elo = this.user.elo;
+      const currentThreshold = rankThresholds.find(t => elo >= t.min && elo <= t.max);
+      if (!currentThreshold) return 0;
 
-      const nextRank = rankThresholds.find((r) => r.min > currentRank.min)
-      if (!nextRank) return 100
+      const nextThreshold = rankThresholds[rankThresholds.indexOf(currentThreshold) + 1];
+      if (!nextThreshold) return 100;
 
-      const progress = ((this.user.elo - currentRank.min) / (nextRank.min - currentRank.min)) * 100
-      return Math.min(Math.max(Math.round(progress), 0), 100)
+      const progress = ((elo - currentThreshold.min) / (nextThreshold.min - currentThreshold.min)) * 100;
+      return Math.min(Math.max(progress, 0), 100);
     },
+    availablePlayers() {
+      if (!this.user?.id || !this.players) return [];
+      return this.players.filter(player => Number(player.userId) !== this.user!.id);
+    }
   },
   methods: {
     handleImageError(event: Event) {
-      const target = event.target as HTMLImageElement
-      target.src = this.defaultAvatar
+      const target = event.target as HTMLImageElement;
+      target.src = this.defaultAvatar;
     },
     async loadUserData() {
       try {
-        console.log('Starting to fetch user data')
+        console.log('Starting to fetch user data');
 
-        const savedUser = Cookies.get('user')
+        const savedUser = Cookies.get('user');
         if (!savedUser) {
-          console.log('No user cookie found')
-          this.error = 'No user is logged in'
-          this.loading = false
-          return
+          console.log('No user cookie found');
+          this.error = 'No user is logged in';
+          this.loading = false;
+          return;
         }
 
         try {
-          const userData = JSON.parse(savedUser)
-          console.log('Parsed user cookie data:', userData)
+          const userData = JSON.parse(savedUser);
+          console.log('Parsed user cookie data:', userData);
 
           if (!userData.email) {
-            console.error('No email found in user cookie')
-            this.error = 'User data is incomplete'
-            this.loading = false
-            return
+            console.error('No email found in user cookie');
+            this.error = 'User data is incomplete';
+            this.loading = false;
+            return;
           }
 
           const response = await apiClient.get('/users/email', {
             params: { email: userData.email },
             timeout: 10000
-          })
+          });
 
           if (!response || response.status !== 200) {
-            throw new Error(`Server responded with status ${response?.status || 'unknown'}`)
+            throw new Error(`Server responded with status ${response?.status || 'unknown'}`);
           }
 
           if (!response.data) {
-            console.error('Response exists but no data received')
-            throw new Error('No data received from server')
+            console.error('Response exists but no data received');
+            throw new Error('No data received from server');
           }
 
-          this.user = response.data
-          this.loading = false
+          this.user = response.data;
+          this.loading = false;
 
-          this.initGameWebSocket()
+          this.initGameWebSocket();
         } catch (parseError) {
-          console.error('Error parsing user cookie:', parseError)
-          this.error = 'Invalid user data format'
-          this.loading = false
+          console.error('Error parsing user cookie:', parseError);
+          this.error = 'Invalid user data format';
+          this.loading = false;
         }
       } catch (error: any) {
-        console.error('Error fetching user data:', error)
-        this.error = `Failed to load user data: ${error.message || 'Unknown error'}`
-        this.loading = false
+        console.error('Error fetching user data:', error);
+        this.error = `Failed to load user data: ${error.message || 'Unknown error'}`;
+        this.loading = false;
       }
     },
     initGameWebSocket() {
       if (!this.user || !this.user.id) {
-        console.error('Cannot initialize game WebSocket - user ID is missing')
-        return
+        console.error('Cannot initialize game WebSocket - user ID is missing');
+        return;
       }
 
-      if (this.gameSocket) {
-        this.gameSocket.close()
+      if (this.stompClient) {
+        this.stompClient.deactivate();
       }
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws')
-      this.gameSocket = new WebSocket(`${baseUrl}/game`)
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+      const wsUrl = baseUrl.replace(/^http/, 'ws');
 
-      this.gameSocket.onopen = () => {
-        console.log('Game WebSocket connection established')
-        this.joinLobby()
-      }
+      this.stompClient = new Client({
+        brokerURL: `${wsUrl}/game`,
+        debug: function(str) {
+          console.log('STOMP: ' + str);
+        },
+        reconnectDelay: 5000,
+        heartbeatIncoming: 4000,
+        heartbeatOutgoing: 4000,
+        onConnect: () => {
+          console.log('Game WebSocket connection established');
 
-      this.gameSocket.onmessage = (event) => {
-        const message = JSON.parse(event.data)
-        console.log('Game WebSocket message received:', message)
+          // Join the lobby
+          this.stompClient?.publish({
+            destination: '/app/game/join-lobby',
+            body: JSON.stringify({
+              userId: this.user?.id
+            })
+          });
 
-        this.handleGameMessage(message)
-      }
+          // Subscribe to lobby updates
+          this.stompClient?.subscribe('/topic/lobby', (message) => {
+            try {
+              this.players = JSON.parse(message.body);
+            } catch (e) {
+              console.error('Error processing lobby update:', e);
+            }
+          });
 
-      this.gameSocket.onclose = () => {
-        console.log('Game WebSocket connection closed')
-        setTimeout(() => this.initGameWebSocket(), 5000)
-      }
+          // Subscribe to personal game messages
+          this.stompClient?.subscribe(`/user/${this.user?.id}/queue/game`, (message) => {
+            try {
+              const gameMessage = JSON.parse(message.body);
+              this.handleGameMessage(gameMessage);
+            } catch (e) {
+              console.error('Error processing game message:', e);
+            }
+          });
+        },
+        onStompError: (frame) => {
+          console.error('STOMP error:', frame);
+        }
+      });
 
-      this.gameSocket.onerror = (error) => {
-        console.error('Game WebSocket error:', error)
-      }
-    },
-    joinLobby() {
-      if (!this.gameSocket || this.gameSocket.readyState !== WebSocket.OPEN || !this.user?.id) {
-        console.error('Cannot join lobby - socket not ready or user ID missing')
-        return
-      }
-
-      const message = {
-        type: 'JOIN_LOBBY',
-        content: '',
-        userId: this.user.id
-      }
-
-      this.gameSocket.send(JSON.stringify(message))
-    },
-    leaveLobby() {
-      if (!this.gameSocket || !this.user?.id) return
-
-      const message = {
-        type: 'LEAVE_LOBBY',
-        content: '',
-        userId: this.user.id
-      }
-
-      this.gameSocket.send(JSON.stringify(message))
+      this.stompClient.activate();
     },
     findRandomOpponent() {
-      if (!this.gameSocket || !this.user?.id) return
+      if (!this.stompClient?.connected || !this.user?.id) return;
 
-      this.findingOpponent = true
-
-      this.showNotification('info', 'Searching for an opponent...')
+      this.findingOpponent = true;
+      this.showNotification('info', 'Searching for an opponent...');
 
       const matchPreferences = {
         eloRange: 200,
         strictMatching: false
+      };
+
+      this.stompClient.publish({
+        destination: '/app/game/find-opponent',
+        body: JSON.stringify({
+          userId: this.user.id,
+          preferences: matchPreferences
+        })
+      });
+
+      // Set a timeout to stop searching after 15 seconds
+      if (this.matchmakingTimer) {
+        clearTimeout(this.matchmakingTimer);
       }
-
-      const message = {
-        type: 'FIND_OPPONENT',
-        content: JSON.stringify(matchPreferences),
-        userId: this.user.id
-      }
-
-      this.gameSocket.send(JSON.stringify(message))
-
-      setTimeout(() => {
+      this.matchmakingTimer = setTimeout(() => {
         if (this.findingOpponent) {
-          this.findingOpponent = false
-          this.showNotification('info', 'No response from server. Please try again.')
+          this.findingOpponent = false;
+          this.showNotification('info', 'No opponent found. Please try again.');
+          this.stompClient?.publish({
+            destination: '/app/game/stop-searching',
+            body: JSON.stringify({
+              userId: this.user?.id
+            })
+          });
         }
-      }, 15000)
+      }, 15000);
     },
     challengePlayer(player: Player) {
-      if (!this.gameSocket || !this.user?.id) return
+      if (!this.stompClient?.connected || !this.user?.id) return;
 
-      this.challengingSomeone = true
+      this.challengingSomeone = true;
 
-      const message = {
-        type: 'CHALLENGE_PLAYER',
-        content: player.userId.toString(),
-        userId: this.user.id
-      }
+      this.stompClient.publish({
+        destination: '/app/game/challenge-player',
+        body: JSON.stringify({
+          userId: this.user.id,
+          targetId: player.userId
+        })
+      });
 
-      this.showNotification('info', `Challenge sent to ${player.username}. Waiting for response...`)
-      this.gameSocket.send(JSON.stringify(message))
+      this.showNotification('info', `Challenge sent to ${player.username}. Waiting for response...`);
     },
     async acceptChallenge() {
-      const message = {
-        type: 'ACCEPT_CHALLENGE',
-        content: JSON.stringify({
-          challengerId: this.challengerId
-        })
+      if (!this.stompClient?.connected || !this.user?.id) {
+        this.error = 'WebSocket connection is not available';
+        return;
       }
 
-      if (this.gameSocket && this.gameSocket.readyState === WebSocket.OPEN) {
-        this.transitioningToGame = true
+      console.log('Accepting challenge...');
+      this.transitioningToGame = true;
+      this.preserveSocket = true;
 
-        this.preserveSocket = true
-
-        if (this.gameSocket) {
-          window.gameSocketInstance = this.gameSocket
-        }
-
-        this.gameSocket.send(JSON.stringify(message))
-
-        this.router.push({
-          path: '/game',
-          query: {
-            preserveConnection: 'true',
-            gameId: this.gameNotification?.data?.gameId
-          }
-        })
-      } else {
-        this.error = 'WebSocket connection is not available'
+      try {
+        this.stompClient.publish({
+          destination: '/app/game/accept-challenge',
+          body: JSON.stringify({
+            userId: this.user.id
+          })
+        });
+        console.log('Challenge acceptance sent');
+      } catch (error) {
+        console.error('Error accepting challenge:', error);
+        this.showNotification('error', 'Failed to accept challenge. Please try again.');
+        this.transitioningToGame = false;
+        this.preserveSocket = false;
       }
     },
     rejectChallenge() {
-      if (!this.gameSocket || !this.user?.id || !this.challengerId) return
+      if (!this.stompClient?.connected || !this.user?.id) return;
 
-      const message = {
-        type: 'REJECT_CHALLENGE',
-        content: this.challengerId.toString(),
-        userId: this.user.id
-      }
+      this.stompClient.publish({
+        destination: '/app/game/reject-challenge',
+        body: JSON.stringify({
+          userId: this.user.id
+        })
+      });
 
-      this.gameSocket.send(JSON.stringify(message))
-      this.gameNotification = null
-      this.challengerId = null
+      this.gameNotification = null;
+      this.challengerId = null;
     },
     handleGameMessage(message: any) {
-      if (message.userId !== this.user?.id) {
-        return
-      }
-
       switch (message.type) {
-        case 'LOBBY_UPDATE':
-          this.handleLobbyUpdate(message)
-          break
         case 'CHALLENGE_RECEIVED':
-          this.handleChallengeReceived(message)
-          break
-        case 'CHALLENGE_SENT':
-          this.handleChallengeSent(message)
-          break
+          this.handleChallengeReceived(message);
+          break;
         case 'CHALLENGE_REJECTED':
-          this.handleChallengeRejected(message)
-          break
+          this.handleChallengeRejected(message);
+          break;
         case 'NO_OPPONENT':
-          this.handleNoOpponent(message)
-          break
+          this.handleNoOpponent(message);
+          break;
         case 'GAME_STARTED':
-          this.handleGameStarted(message)
-          break
+          this.handleGameStarted(message);
+          break;
         case 'ERROR':
-          this.handleError(message)
-          break
-      }
-    },
-    handleLobbyUpdate(message: any) {
-      try {
-        const playersData = JSON.parse(message.content)
-        this.players = playersData
-        console.log('Available players updated:', this.players)
-      } catch (e) {
-        console.error('Error parsing lobby update data:', e)
+          this.handleError(message);
+          break;
       }
     },
     handleChallengeReceived(message: any) {
-      try {
-        const challengeInfo = JSON.parse(message.content)
-        this.challengerId = challengeInfo.challengerId
+      this.challengerId = message.challengerId;
 
-        const challengeMessage = `
-          <div class="flex items-center">
-            <img src="${challengeInfo.challengerPicture || this.defaultAvatar}" class="w-8 h-8 rounded-full mr-2" alt="Challenger" />
-            <div>
-              <strong>${challengeInfo.challengerName}</strong> (ELO: ${challengeInfo.challengerElo})
-              <p>has challenged you to a game!</p>
-            </div>
+      const challengeMessage = `
+        <div class="flex items-center">
+          <img src="${message.challengerPicture || this.defaultAvatar}" class="w-8 h-8 rounded-full mr-2" alt="Challenger" />
+          <div>
+            <strong>${message.challengerName}</strong> (ELO: ${message.challengerElo})
+            <p>has challenged you to a game!</p>
           </div>
-        `
+        </div>
+      `;
 
-        this.showNotification('challenge', challengeMessage)
-
-      } catch (e) {
-        console.error('Error handling challenge:', e)
-      }
-    },
-    handleChallengeSent(message: any) {
-      this.challengingSomeone = false
+      this.showNotification('challenge', challengeMessage);
     },
     handleChallengeRejected(message: any) {
-      this.challengingSomeone = false
-      this.showNotification('info', message.content)
+      this.challengingSomeone = false;
+      this.showNotification('info', message.content);
     },
     handleNoOpponent(message: any) {
-      this.findingOpponent = false
-      this.showNotification('info', message.content)
+      this.findingOpponent = false;
+      this.showNotification('info', message.content);
     },
     handleGameStarted(message: any) {
+      console.log('Game started event received:', message);
+      this.preserveSocket = true;
+
+      if (!this.user?.id || !this.user?.username) {
+        console.error('User data is missing');
+        this.showNotification('error', 'Failed to start game: User data is missing');
+        return;
+      }
+
       try {
-        const gameData = JSON.parse(message.content)
-        if (this.gameSocket) {
-          window.gameSocketInstance = this.gameSocket
-        }
-
-
-        this.preserveSocket = true
-
-        this.$router.push({
+        this.router.push({
           name: 'game',
-          params: { gameId: gameData.gameId },
+          params: { gameId: message.gameId },
           query: {
-            opponentId: gameData.opponentId,
-            opponentName: gameData.opponentName,
-            opponentPicture: gameData.opponentPicture,
-            opponentElo: gameData.opponentElo,
-            rounds: gameData.rounds,
-            currentRound: gameData.currentRound,
-            currentPuzzleId: gameData.currentPuzzleId,
-            timePerRound: gameData.timePerRound,
+            playerId: this.user.id.toString(),
+            username: this.user.username,
+            picture: this.user.picture || '',
+            opponentId: message.opponentId,
+            opponentName: message.opponentName,
+            opponentPicture: message.opponentPicture,
+            opponentElo: message.opponentElo,
+            rounds: message.rounds,
+            currentRound: message.currentRound,
+            currentPuzzleId: message.currentPuzzleId,
+            timePerRound: message.timePerRound,
           }
-        })
-      } catch (e) {
-        console.error('Error handling game start:', e)
+        });
+      } catch (error) {
+        console.error('Error navigating to game:', error);
+        this.showNotification('error', 'Failed to start game. Please try again.');
       }
     },
     handleError(message: any) {
-      this.showNotification('error', message.content)
+      this.showNotification('error', message.content);
     },
     showNotification(type: string, message: string) {
-      this.gameNotification = { type, message }
+      this.gameNotification = { type, message };
 
       if (type !== 'challenge') {
         setTimeout(() => {
           if (this.gameNotification && this.gameNotification.message === message) {
-            this.gameNotification = null
+            this.gameNotification = null;
           }
-        }, 5000)
+        }, 5000);
       }
     },
     toggleInviteModal() {
-      this.showInviteModal = !this.showInviteModal
-      this.linkCopied = false
+      this.showInviteModal = !this.showInviteModal;
+      this.linkCopied = false;
 
       if (this.showInviteModal) {
-        const baseUrl = window.location.origin
-        this.inviteLink = `${baseUrl}/invite?user=${this.user?.username || 'friend'}`
+        const baseUrl = window.location.origin;
+        this.inviteLink = `${baseUrl}/invite?user=${this.user?.username || 'friend'}`;
       }
     },
     copyInviteLink() {
       navigator.clipboard.writeText(this.inviteLink)
         .then(() => {
-          this.linkCopied = true
+          this.linkCopied = true;
         })
         .catch(err => {
-          console.error('Failed to copy link:', err)
-        })
+          console.error('Failed to copy link:', err);
+        });
     }
   },
   created() {
-    this.loadUserData()
-    this.inviteLink = `${window.location.origin}/invite`
+    this.loadUserData();
+    this.inviteLink = `${window.location.origin}/invite`;
   },
   beforeUnmount() {
-    if (this.gameSocket && !this.preserveSocket) {
-      this.gameSocket.close()
+    if (this.stompClient && !this.preserveSocket) {
+      if (this.user?.id) {
+        this.stompClient.publish({
+          destination: '/app/game/leave-lobby',
+          body: JSON.stringify({
+            userId: this.user.id
+          })
+        });
+      }
+      this.stompClient.deactivate();
     }
 
     if (this.matchmakingTimer) {
-      clearInterval(this.matchmakingTimer)
+      clearTimeout(this.matchmakingTimer);
     }
   },
 }

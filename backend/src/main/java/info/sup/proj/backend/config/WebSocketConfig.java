@@ -1,33 +1,44 @@
 package info.sup.proj.backend.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.config.annotation.EnableWebSocket;
-import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
-import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 @Configuration
-@EnableWebSocket
-public class WebSocketConfig implements WebSocketConfigurer {
-    
-    @Value("${app.cors.allowed-origins:https://localhost:5173,https://promptmaster-frontend.braveforest-8e4d5d0c.westeurope.azurecontainerapps.io}")
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Value("${app.cors.allowed-origins:http://localhost:5173,https://localhost:5173,https://promptmaster-frontend.braveforest-8e4d5d0c.westeurope.azurecontainerapps.io}")
     private String[] allowedOrigins;
-    
-    @Autowired
-    private GameWebSocketHandler gameWebSocketHandler;
-    
-    @Autowired
-    private ChatWebSocketHandler chatWebSocketHandler;
-    
+
     @Override
-    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // Chat WebSocket handler
-        registry.addHandler(chatWebSocketHandler, "/chat")
-                .setAllowedOrigins(allowedOrigins);
-        
-        // Game WebSocket handler
-        registry.addHandler(gameWebSocketHandler, "/game")
-                .setAllowedOrigins(allowedOrigins);
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic", "/queue", "/user");
+        config.setApplicationDestinationPrefixes("/app");
+        config.setUserDestinationPrefix("/user");
+    }
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Game endpoint
+        registry.addEndpoint("/game")
+                .setAllowedOriginPatterns("*");
+
+        // Also add SockJS fallback for browsers that don't support WebSocket
+        registry.addEndpoint("/game")
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
+
+        // Chat endpoint
+        registry.addEndpoint("/chat")
+                .setAllowedOriginPatterns("*");
+
+        // Also add SockJS fallback for browsers that don't support WebSocket
+        registry.addEndpoint("/chat")
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
     }
 }

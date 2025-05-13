@@ -1,101 +1,105 @@
+<!-- Game.vue -->
 <template>
   <div class="bg-gray-100 min-h-screen">
     <main class="container mx-auto py-8">
 
+      <!-- Game Notification -->
       <div v-if="gameNotification" class="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded relative mb-6">
-        <span v-html="gameNotification.message"></span>
+        <span v-html="gameNotification"></span>
       </div>
 
-      <div v-if="inGame && currentGame" class="bg-white p-6 shadow rounded-lg mb-6">
+      <!-- Game Content -->
+      <template v-if="gameState && inGame">
+        <div class="bg-white p-6 shadow-lg rounded-lg mb-6">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold">Game in Progress</h3>
+            <h3 class="text-lg font-semibold text-gray-800">Game in Progress</h3>
           <div class="text-sm">
-            <span class="font-bold">Round {{ currentGame.currentRound }}/3</span>
+              <span class="font-bold">Round {{ gameState.currentRound }}/{{ gameState.totalRounds }}</span>
             <span class="mx-2">|</span>
             <span class="font-bold">Time: {{ formatTime(timeRemaining) }}</span>
           </div>
         </div>
 
+          <!-- Player Info -->
         <div class="flex justify-between items-center mb-6">
           <div class="flex items-center">
-            <img :src="user?.picture || defaultAvatar" class="w-10 h-10 rounded-full mr-3" alt="Your avatar" />
+              <img :src="currentPlayer?.picture || defaultAvatar" class="w-10 h-10 rounded-full mr-3 border-2 border-blue-500" alt="Your avatar" />
             <div>
-              <p class="font-semibold">You</p>
-              <p class="text-sm">Score: {{ currentGame.yourScore }}</p>
+                <p class="font-semibold text-gray-800">{{ currentPlayer?.username }}</p>
+                <p class="text-sm text-gray-600">Score: {{ gameState.playerStatus[currentPlayer?.id || '']?.score || 0 }}</p>
             </div>
           </div>
 
-          <div class="text-xl font-bold">VS</div>
+            <div class="text-xl font-bold text-gray-600">VS</div>
 
           <div class="flex items-center">
             <div class="text-right mr-3">
-              <p class="font-semibold">{{ currentGame.opponentName }}</p>
-              <p class="text-sm">Score: {{ currentGame.opponentScore }}</p>
+                <p class="font-semibold text-gray-800">{{ getOpponentName() }}</p>
+                <p class="text-sm text-gray-600">Score: {{ getOpponentScore() }}</p>
             </div>
-            <img :src="currentGame.opponentPicture" class="w-10 h-10 rounded-full" alt="Opponent avatar" />
+              <img :src="getOpponentAvatar()" class="w-10 h-10 rounded-full border-2 border-red-500" alt="Opponent avatar" />
           </div>
         </div>
 
-        <div v-if="currentPuzzle && !showPuzzleButton" class="mt-6">
+          <!-- Puzzle Content -->
+          <div v-if="gameState.puzzle && !showPuzzleButton" class="mt-6">
           <div class="flex flex-col items-stretch p-6 bg-light-50 rounded-xl shadow-lg mx-auto gap-6">
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
-              <h3 class="text-lg font-semibold text-gray-700">Puzzle: {{ currentPuzzle.name }}</h3>
-              <p class="mt-2">{{ currentPuzzle.description }}</p>
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">{{ gameState.puzzle.name }}</h3>
+                <div class="space-y-4">
+                  <p class="text-gray-600">{{ gameState.puzzle.description }}</p>
+                </div>
             </div>
 
-            <div class="flex items-start w-full gap-4">
-              <img :src="user?.picture || defaultAvatar" class="w-10 h-10 rounded-full border-2 border-blue-500 shadow" alt="Avatar" />
-              <div class="flex-1 p-4 rounded-3 bg-white text-15px text-gray-800 shadow relative">
-                <div class="absolute left--2.5 top-5 border-y-10px border-r-10px border-l-0 border-y-transparent border-r-white"></div>
+              <!-- AI Assistant Response -->
+              <div v-if="textBubble" class="flex items-start w-full gap-4">
+                <img :src="defaultAvatar" class="w-10 h-10 rounded-full border-2 border-blue-500 shadow" alt="AI Avatar" />
+                <div class="flex-1 p-4 rounded-lg bg-white text-gray-800 shadow relative">
+                  <div class="absolute left-[-10px] top-4 border-y-[10px] border-r-[10px] border-l-0 border-y-transparent border-r-white"></div>
                 {{ textBubble }}
               </div>
             </div>
 
-            <div class="flex w-full gap-6">
-              <div class="flex-1 flex flex-col gap-3 min-w-0">
+              <!-- Prompt Input -->
+              <div class="flex flex-col gap-3">
                 <textarea
-                  v-model="userInput"
-                  placeholder="Enter your input here"
-                  class="w-full min-h-24 max-h-40 p-4 border border-gray-200 rounded-2 text-14px text-gray-800 bg-white shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors resize-y font-inherit box-border overflow-auto"
+                  v-model="promptInput"
+                  placeholder="Describe what you want to do..."
+                  class="w-full min-h-24 max-h-40 p-4 border border-gray-200 rounded-lg text-sm text-gray-800 bg-white shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors resize-y"
                 ></textarea>
                 <div class="flex justify-between w-full">
                   <button
-                    @click="handleSubmit"
-                    :disabled="isSubmitting"
-                    class="px-6 py-2.5 bg-blue-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-blue-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+                    @click="handlePrompt"
+                    :disabled="isPrompting || !isPlayerTurn"
+                    class="px-6 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-70 disabled:cursor-not-allowed flex items-center"
                   >
-                    <span v-if="!isSubmitting">Submit</span>
+                    <span v-if="!isPrompting">Generate Code</span>
                     <span v-else class="flex items-center">
                       <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Processing...
+                      Generating...
                     </span>
                   </button>
                   <button
-                    @click="markCompleted"
-                    :disabled="isSubmitting"
-                    class="px-6 py-2.5 bg-green-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-green-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed"
+                    @click="handleSubmit"
+                    :disabled="isSubmitting || !isPlayerTurn"
+                    class="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    Complete Puzzle
+                    Submit Solution
                   </button>
-                </div>
               </div>
             </div>
 
-            <div class="w-full h-75 rounded-2 overflow-hidden shadow" ref="editorDiv"></div>
+              <!-- Code Editor -->
+              <div class="w-full h-[400px] rounded-lg overflow-hidden shadow bg-[#282c34]" ref="editorContainer"></div>
           </div>
         </div>
 
-        <div v-else-if="inGame" class="text-center">
-          <p class="text-center mb-4">
-            Solve the <span class="font-bold">Multi-Step Puzzle #{{ currentGame.currentPuzzleId }}</span>
-          </p>
-
-          <div class="text-center">
+          <!-- Start Puzzle Button -->
+          <div v-else-if="showPuzzleButton" class="text-center mt-6">
             <button
-              v-if="showPuzzleButton"
               @click="loadPuzzle"
               class="bg-blue-500 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-600 transition"
             >
@@ -109,8 +113,9 @@
             </button>
           </div>
         </div>
-      </div>
+      </template>
 
+      <!-- Waiting State -->
       <div v-if="!inGame && !showGameResults" class="text-center mt-8">
         <p class="mb-4 text-gray-600">Waiting for a game to start...</p>
         <button
@@ -121,6 +126,7 @@
         </button>
       </div>
 
+      <!-- Game Results Modal -->
       <div v-if="showGameResults && gameResults" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50"></div>
         <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md">
@@ -149,16 +155,17 @@
           </div>
 
           <div class="flex justify-between space-x-4">
-            <button @click="playAgain" class="w-1/2 bg-blue-500 text-white py-2 rounded-lg">
+            <button @click="playAgain" class="w-1/2 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">
               Play Again
             </button>
-            <button @click="returnToLobby" class="w-1/2 bg-gray-500 text-white py-2 rounded-lg">
+            <button @click="returnToLobby" class="w-1/2 bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600">
               Return to Lobby
             </button>
           </div>
         </div>
       </div>
 
+      <!-- Score Popup -->
       <div v-if="showScorePopup && scoreDetails" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-70"></div>
         <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
@@ -174,22 +181,20 @@
             </div>
           </div>
 
-          <div class="space-y-3 mb-6">
+          <div class="space-y-3">
             <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.timeScore < 40}">
               <span class="text-gray-700">Time ({{ formatTime(scoreDetails.timeSeconds) }})</span>
               <div class="flex items-center">
                 <span class="font-bold" :class="{'text-red-600': scoreDetails.timeScore < 40}">{{ scoreDetails.timeScore || 0 }}</span>
                 <span class="text-gray-500 text-sm ml-1">/100</span>
-                <span v-if="scoreDetails.timeScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
               </div>
             </div>
 
             <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.efficiencyScore < 40}">
-              <span class="text-gray-700">Efficiency ({{ scoreDetails.interactionCount || 0 }} interactions)</span>
+              <span class="text-gray-700">Efficiency</span>
               <div class="flex items-center">
                 <span class="font-bold" :class="{'text-red-600': scoreDetails.efficiencyScore < 40}">{{ scoreDetails.efficiencyScore || 0 }}</span>
                 <span class="text-gray-500 text-sm ml-1">/100</span>
-                <span v-if="scoreDetails.efficiencyScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
               </div>
             </div>
 
@@ -198,572 +203,177 @@
               <div class="flex items-center">
                 <span class="font-bold" :class="{'text-red-600': scoreDetails.tokenScore < 40}">{{ scoreDetails.tokenScore || 0 }}</span>
                 <span class="text-gray-500 text-sm ml-1">/100</span>
-                <span v-if="scoreDetails.tokenScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
+              </div>
               </div>
             </div>
 
-            <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.correctnessScore < 40}">
-              <span class="text-gray-700">Code Correctness</span>
-              <div class="flex items-center">
-                <span class="font-bold" :class="{'text-red-600': scoreDetails.correctnessScore < 40}">{{ scoreDetails.correctnessScore || 0 }}</span>
-                <span class="text-gray-500 text-sm ml-1">/100</span>
-                <span v-if="scoreDetails.correctnessScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
-              </div>
-            </div>
-
-            <div class="flex justify-between items-center" :class="{'bg-red-50 p-2 rounded-md': scoreDetails.codeQualityScore < 40}">
-              <span class="text-gray-700">Code Quality</span>
-              <div class="flex items-center">
-                <span class="font-bold" :class="{'text-red-600': scoreDetails.codeQualityScore < 40}">{{ scoreDetails.codeQualityScore || 0 }}</span>
-                <span class="text-gray-500 text-sm ml-1">/100</span>
-                <span v-if="scoreDetails.codeQualityScore < 40" class="text-red-500 ml-2 text-sm">Failed</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex justify-center">
             <button
               @click="closeScorePopup"
-              class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-medium hover:from-blue-600 hover:to-purple-700"
+            class="w-full mt-6 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
             >
               Continue
             </button>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="showRoundScores && roundScores" class="fixed inset-0 flex items-center justify-center z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-70"></div>
-        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
-          <h2 class="text-3xl font-bold text-center mb-2">Round {{ roundScores.round }} Complete!</h2>
-          <p class="text-gray-600 text-center mb-6">Round scores:</p>
-
-          <div class="flex justify-between items-center mb-8">
-            <div class="text-center">
-              <div class="text-5xl font-bold" :class="roundScores.yourScore > roundScores.opponentScore ? 'text-green-600' : roundScores.yourScore < roundScores.opponentScore ? 'text-red-600' : 'text-blue-600'">
-                {{ roundScores.yourScore }}
-              </div>
-              <p class="text-sm mt-2">Your Score</p>
-            </div>
-            <div class="text-3xl font-bold">vs</div>
-            <div class="text-center">
-              <div class="text-5xl font-bold" :class="roundScores.opponentScore > roundScores.yourScore ? 'text-green-600' : roundScores.opponentScore < roundScores.yourScore ? 'text-red-600' : 'text-blue-600'">
-                {{ roundScores.opponentScore }}
-              </div>
-              <p class="text-sm mt-2">{{ currentGame?.opponentName }}'s Score</p>
-            </div>
-          </div>
-
-          <div class="flex justify-center">
-            <button
-              @click="goToNextRound"
-              class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-medium hover:from-blue-600 hover:to-purple-700"
-            >
-              Next Round
-            </button>
-          </div>
         </div>
       </div>
     </main>
   </div>
 </template>
 
-<script lang="ts">
-import Cookies from 'js-cookie'
-import apiClient from '../services/api'
-import { useRoute, useRouter } from 'vue-router'
-import { onMounted, onBeforeUnmount, ref, reactive } from 'vue'
-import { EditorView, lineNumbers, highlightActiveLineGutter, highlightSpecialChars } from "@codemirror/view"
-import { EditorState } from "@codemirror/state"
-import { javascript } from "@codemirror/lang-javascript"
-import { keymap } from "@codemirror/view"
-import { defaultKeymap } from "@codemirror/commands"
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language"
-import { bracketMatching } from "@codemirror/language"
-import { closeBrackets } from "@codemirror/autocomplete"
-import { history } from "@codemirror/commands"
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useGameStore } from '../stores/game';
+import type { Player } from '../types/game';
+import { EditorView, lineNumbers, highlightActiveLineGutter, highlightSpecialChars } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
+import { javascript } from "@codemirror/lang-javascript";
+import { keymap } from "@codemirror/view";
+import { defaultKeymap } from "@codemirror/commands";
+import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { bracketMatching } from "@codemirror/language";
+import { closeBrackets } from "@codemirror/autocomplete";
+import { history } from "@codemirror/commands";
+import apiClient from '../services/api';
 
-declare global {
-  interface Window {
-    gameSocketInstance?: WebSocket;
+// Router and store setup
+const route = useRoute();
+const router = useRouter();
+const gameStore = useGameStore();
+
+// Store refs and methods
+const { gameState, currentPlayer, isConnected, lastError } = storeToRefs(gameStore);
+const { initializeGame, markPuzzleCompleted, isPlayerTurn, cleanup } = gameStore;
+
+// Component state
+const defaultAvatar = '/default-avatar.png';
+const editorContainer = ref<HTMLElement | null>(null);
+const editor = ref<EditorView | null>(null);
+const code = ref('');
+const textBubble = ref("What would you like to do first?");
+const isSubmitting = ref(false);
+const showPuzzleButton = ref(true);
+const inGame = ref(false);
+const timeRemaining = ref(300);
+const gameNotification = ref('');
+const showGameResults = ref(false);
+const showScorePopup = ref(false);
+const promptInput = ref('');
+const isPrompting = ref(false);
+
+// Game state
+const gameResults = ref<{
+  result: 'WIN' | 'LOSS' | 'DRAW';
+  yourScore: number;
+  opponentScore: number;
+  eloChange: number;
+} | null>(null);
+
+const scoreDetails = ref<{
+  totalScore: number;
+  timeScore: number;
+  efficiencyScore: number;
+  tokenScore: number;
+  timeSeconds: number;
+  hasFailed: boolean;
+} | null>(null);
+
+// Timer
+let timerInterval: number | undefined;
+
+// Computed
+const getOpponentName = () => {
+  if (!gameState.value || !currentPlayer.value) return '';
+  const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
+  return opponent?.username || 'Opponent';
+};
+
+const getOpponentScore = () => {
+  if (!gameState.value || !currentPlayer.value) return 0;
+  const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
+  return opponent ? gameState.value.playerStatus[opponent.id]?.score || 0 : 0;
+};
+
+const getOpponentAvatar = () => {
+  if (!gameState.value || !currentPlayer.value) return defaultAvatar;
+  const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
+  return opponent?.picture || defaultAvatar;
+};
+
+// Methods
+const startTimer = () => {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = window.setInterval(() => {
+    if (timeRemaining.value > 0) {
+      timeRemaining.value--;
+    } else {
+      clearInterval(timerInterval);
+      handleTimeout();
+    }
+  }, 1000);
+};
+
+const formatTime = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const handleTimeout = () => {
+  markPuzzleCompleted();
+  showScorePopup.value = true;
+};
+
+const handleSubmit = async () => {
+  console.log('Submit button clicked');
+  console.log('Is submitting:', isSubmitting.value);
+  console.log('Editor exists:', !!editor.value);
+  console.log('Game state exists:', !!gameState.value);
+  console.log('Current player exists:', !!currentPlayer.value);
+  console.log('Code length:', code.value.length);
+
+  if (isSubmitting.value || !gameState.value?.puzzle || !currentPlayer.value) {
+    console.log('Cannot submit solution - missing game state or player');
+    return;
   }
-}
 
-interface User {
-  id?: number
-  email: string
-  name?: string
-  username: string
-  picture: string
-  country: string
-  rank: string
-  elo: number
-  createdAt?: string
-  updatedAt?: string
-}
+  // Don't require editor to exist, just use the code.value
+  console.log('Submitting solution with code length:', code.value.length);
+  isSubmitting.value = true;
 
-interface GameNotification {
-  type: string
-  message: string
-  data?: any
-}
+  try {
+    await gameStore.submitSolution(code.value);
+    console.log('Solution submitted successfully to server');
+    textBubble.value = 'Solution submitted for evaluation!';
+  } catch (error) {
+    console.error('Error submitting solution:', error);
+    textBubble.value = 'Failed to submit solution. Please try again.';
+  } finally {
+    isSubmitting.value = false;
+  }
+};
 
-interface CurrentGame {
-  gameId: string
-  opponentId: number
-  opponentName: string
-  opponentPicture: string
-  opponentElo: number
-  rounds: number
-  currentRound: number
-  currentPuzzleId: number
-  timePerRound: number
-  yourScore: number
-  opponentScore: number
-}
+const handleComplete = () => {
+  markPuzzleCompleted();
+};
 
-interface GameResults {
-  gameId: string
-  result: 'WIN' | 'LOSS' | 'DRAW' | 'WIN_BY_FORFEIT' | 'FORFEIT'
-  yourScore: number
-  opponentScore: number
-  eloChange: number
-}
+const loadPuzzle = () => {
+  console.log('loadPuzzle called');
+  console.log('Editor container exists:', !!editorContainer.value);
+  console.log('Current code length:', code.value.length);
 
-interface Puzzle {
-  id: number
-  name: string
-  description: string
-  code: string
-  type: string
-}
+  showPuzzleButton.value = false;
+  startTimer();
 
-interface ScoreDetails {
-  totalScore: number
-  timeScore: number
-  efficiencyScore: number
-  tokenScore: number
-  correctnessScore: number
-  codeQualityScore: number
-  timeSeconds: number
-  interactionCount: number
-  hasFailed: boolean
-}
+  // Try to initialize the editor with a retry mechanism if container not available yet
+  const initEditor = () => {
+    console.log('initEditor called, checking container');
 
-export default {
-  name: 'GameView',
-  setup() {
-    const route = useRoute()
-    const router = useRouter()
-
-    const gameSocket = ref<WebSocket | null>(null)
-    const preserveSocket = ref(false)
-    const user = ref<User | null>(null)
-    const gameId = ref<string | null>(null)
-    const inGame = ref(false)
-    const currentGame = ref<CurrentGame | null>(null)
-    const timeRemaining = ref(0)
-    const timerInterval = ref<ReturnType<typeof setInterval> | null>(null)
-    const gameNotification = ref<GameNotification | null>(null)
-    const showGameResults = ref(false)
-    const gameResults = ref<GameResults | null>(null)
-    const defaultAvatar = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'
-    const loading = ref(true)
-    const error = ref<string | null>(null)
-
-    const currentPuzzle = ref<Puzzle | null>(null)
-    const showPuzzleButton = ref(true)
-    const userInput = ref('')
-    const code = ref('')
-    const textBubble = ref("Let's solve this puzzle. What would you like to do first?")
-    const editorDiv = ref<HTMLElement | null>(null)
-    const editor = ref<EditorView | null>(null)
-    const isSubmitting = ref(false)
-    const showScorePopup = ref(false)
-    const scoreDetails = ref<ScoreDetails | null>(null)
-
-    const showRoundScores = ref(false)
-    const roundScores = ref<any>(null)
-    const playerCompletedPuzzle = ref(false)
-    const opponentCompletedPuzzle = ref(false)
-
-    const loadUserData = async () => {
-      try {
-        const savedUser = Cookies.get('user')
-        if (!savedUser) {
-          error.value = 'No user is logged in'
-          loading.value = false
-          return
-        }
+    if (!editor.value) {
+      if (editorContainer.value) {
+        console.log('Creating editor instance now');
 
         try {
-          const userData = JSON.parse(savedUser)
-
-          if (!userData.email) {
-            error.value = 'User data is incomplete'
-            loading.value = false
-            return
-          }
-
-          const response = await apiClient.get('/users/email', {
-            params: { email: userData.email },
-            timeout: 10000
-          })
-
-          if (!response || response.status !== 200) {
-            throw new Error(`Server responded with status ${response?.status || 'unknown'}`)
-          }
-
-          if (!response.data) {
-            throw new Error('No data received from server')
-          }
-
-          user.value = response.data
-          loading.value = false
-
-          initGameState()
-        } catch (parseError) {
-          console.error('Error parsing user cookie:', parseError)
-          error.value = 'Invalid user data format'
-          loading.value = false
-        }
-      } catch (error: any) {
-        console.error('Error fetching user data:', error)
-        error.value = `Failed to load user data: ${error.message || 'Unknown error'}`
-        loading.value = false
-      }
-    }
-
-    const initGameState = () => {
-      const urlGameId = route.params.gameId as string
-      if (urlGameId) {
-        gameId.value = urlGameId
-        const gameData = route.query
-        if (gameData && Object.keys(gameData).length > 0) {
-          initGameFromParams(gameData)
-        }
-      }
-
-      initGameWebSocket()
-    }
-
-    const initGameFromParams = (params: any) => {
-      inGame.value = true
-
-      currentGame.value = {
-        gameId: params.gameId as string,
-        opponentId: parseInt(params.opponentId as string),
-        opponentName: params.opponentName as string,
-        opponentPicture: params.opponentPicture as string || defaultAvatar,
-        opponentElo: parseInt(params.opponentElo as string) || 0,
-        rounds: parseInt(params.rounds as string) || 3,
-        currentRound: parseInt(params.currentRound as string) || 1,
-        currentPuzzleId: parseInt(params.currentPuzzleId as string),
-        timePerRound: parseInt(params.timePerRound as string) || 300,
-        yourScore: parseInt(params.yourScore as string) || 0,
-        opponentScore: parseInt(params.opponentScore as string) || 0
-      }
-
-      timeRemaining.value = currentGame.value.timePerRound
-      startTimer()
-    }
-
-    const initGameWebSocket = () => {
-      if (window.gameSocketInstance && window.gameSocketInstance.readyState === WebSocket.OPEN) {
-        console.log('Reusing existing WebSocket connection from Lobby')
-        gameSocket.value = window.gameSocketInstance
-
-        setupSocketEventHandlers()
-        return
-      }
-
-      if (!user.value || !user.value.id) {
-        console.error('Cannot initialize game WebSocket - user ID is missing')
-        return
-      }
-
-      if (gameSocket.value) {
-        gameSocket.value.close()
-      }
-
-      const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws')
-      gameSocket.value = new WebSocket(`${baseUrl}/game`)
-
-      gameSocket.value.onopen = () => {
-        console.log('Game WebSocket connection established')
-        if (gameSocket.value) {
-          window.gameSocketInstance = gameSocket.value
-        }
-      }
-
-      setupSocketEventHandlers()
-    }
-
-    const handleGameMessage = (message: any) => {
-      console.log('Game message received:', message)
-
-      if (message.userId && message.userId !== user.value?.id) {
-        console.log('Message not for this user, ignoring')
-        return
-      }
-
-      switch (message.type) {
-        case 'GAME_STARTED':
-          handleGameStarted(message)
-          break
-        case 'PUZZLE_LOADED':
-          handlePuzzleLoaded(message)
-          break
-        case 'SOLUTION_SUBMITTED':
-          handleSolutionSubmitted(message)
-          break
-        case 'ROUND_COMPLETE':
-          handleRoundComplete(message)
-          break
-        case 'OPPONENT_COMPLETED':
-          handleOpponentCompleted(message)
-          break
-        case 'GAME_OVER':
-          handleGameOver(message)
-          break
-        case 'NO_OPPONENT':
-          handleNoOpponent(message)
-          break
-        case 'ERROR':
-          handleError(message)
-          break
-        default:
-          console.log('Unknown message type:', message.type)
-      }
-    }
-
-    const handlePuzzleLoaded = (message: any) => {
-      try {
-        const puzzleData = JSON.parse(message.content)
-        currentPuzzle.value = puzzleData
-        showPuzzleButton.value = false
-
-        code.value = puzzleData.code || ''
-        initializeEditor()
-
-        showNotification('info', `Puzzle "${puzzleData.name}" loaded. Good luck!`)
-      } catch (e) {
-        console.error('Error handling puzzle loaded:', e)
-      }
-    }
-
-    const handleNoOpponent = (message: any) => {
-      showNotification('info', message.content || "No opponent found. Returning to lobby...")
-      console.log("NO_OPPONENT message received, returning to lobby")
-
-      if (timerInterval.value) {
-        clearInterval(timerInterval.value)
-        timerInterval.value = null
-      }
-
-      inGame.value = false
-      currentGame.value = null
-
-      setTimeout(() => {
-        router.push('/vs')
-      }, 2000)
-    }
-
-    const handleGameStarted = (message: any) => {
-      try {
-        const gameData = JSON.parse(message.content)
-
-        inGame.value = true
-        currentGame.value = {
-          gameId: gameData.gameId,
-          opponentId: gameData.opponentId,
-          opponentName: gameData.opponentName,
-          opponentPicture: gameData.opponentPicture || defaultAvatar,
-          opponentElo: gameData.opponentElo,
-          rounds: gameData.rounds,
-          currentRound: gameData.currentRound,
-          currentPuzzleId: gameData.currentPuzzleId,
-          timePerRound: gameData.timePerRound,
-          yourScore: 0,
-          opponentScore: 0
-        }
-
-        timeRemaining.value = gameData.timePerRound
-        startTimer()
-
-        showNotification('success', `Game started! You're playing against ${gameData.opponentName}.`)
-      } catch (e) {
-        console.error('Error handling game start:', e)
-      }
-    }
-
-    const handleSolutionSubmitted = (message: any) => {
-      try {
-        const resultData = JSON.parse(message.content)
-        showNotification('info', resultData.message)
-
-        if (resultData.userId && resultData.userId !== user.value?.id) {
-          opponentCompletedPuzzle.value = true;
-
-          if (playerCompletedPuzzle.value && opponentCompletedPuzzle.value) {
-            showRoundScores.value = true;
-            roundScores.value = {
-              round: currentGame.value?.currentRound || 1,
-              yourScore: currentGame.value?.yourScore || 0,
-              opponentScore: currentGame.value?.opponentScore || 0
-            };
-          }
-        }
-      } catch (e) {
-        console.error('Error handling solution submission:', e)
-      }
-    }
-
-    const handleRoundComplete = (message: any) => {
-      try {
-        const roundData = JSON.parse(message.content)
-
-        if (currentGame.value) {
-          currentGame.value.yourScore = roundData.yourScore
-          currentGame.value.opponentScore = roundData.opponentScore
-
-          currentGame.value.currentRound = roundData.nextRound
-          currentGame.value.currentPuzzleId = roundData.nextPuzzleId
-
-          timeRemaining.value = currentGame.value.timePerRound
-
-          currentPuzzle.value = null
-          showPuzzleButton.value = true
-
-          showNotification('success', `Round ${roundData.currentRound} complete! Starting round ${roundData.nextRound}.`)
-
-          playerCompletedPuzzle.value = false
-          opponentCompletedPuzzle.value = false
-
-          roundScores.value = {
-            round: roundData.currentRound,
-            yourScore: roundData.yourScore,
-            opponentScore: roundData.opponentScore
-          }
-
-          if (playerCompletedPuzzle.value && opponentCompletedPuzzle.value) {
-            showRoundScores.value = true
-          }
-        }
-      } catch (e) {
-        console.error('Error handling round complete:', e)
-      }
-    }
-
-    const handleGameOver = (message: any) => {
-      try {
-        const gameOverData = JSON.parse(message.content)
-
-        if (timerInterval.value) {
-          clearInterval(timerInterval.value)
-          timerInterval.value = null
-        }
-
-        gameResults.value = {
-          gameId: gameOverData.gameId,
-          result: gameOverData.result,
-          yourScore: gameOverData.yourScore,
-          opponentScore: gameOverData.opponentScore,
-          eloChange: gameOverData.eloChange
-        }
-
-        showGameResults.value = true
-        inGame.value = false
-
-      } catch (e) {
-        console.error('Error handling game over:', e)
-      }
-    }
-
-    const handleError = (message: any) => {
-      showNotification('error', message.content || 'An error occurred')
-    }
-
-    const startTimer = () => {
-      if (timerInterval.value) {
-        clearInterval(timerInterval.value)
-        timerInterval.value = null
-      }
-
-      timerInterval.value = setInterval(() => {
-        if (timeRemaining.value > 0) {
-          timeRemaining.value--
-        } else {
-          if (timerInterval.value) {
-            clearInterval(timerInterval.value)
-            timerInterval.value = null
-          }
-
-          submitSolution(true)
-        }
-      }, 1000)
-    }
-
-    const formatTime = (seconds: number): string => {
-      const minutes = Math.floor(seconds / 60)
-      const secs = seconds % 60
-      return `${minutes}:${secs.toString().padStart(2, '0')}`
-    }
-
-    const showNotification = (type: string, message: string) => {
-      gameNotification.value = { type, message }
-
-      setTimeout(() => {
-        if (gameNotification.value?.message === message) {
-          gameNotification.value = null
-        }
-      }, 5000)
-    }
-
-    const forfeitGame = async () => {
-      if (!currentGame.value?.gameId || !user.value?.id) return
-
-      try {
-        await apiClient.post('/game/forfeit', {
-          gameId: currentGame.value.gameId,
-          userId: user.value.id
-        })
-
-      } catch (e) {
-        console.error('Error forfeiting game:', e)
-        showNotification('error', 'Failed to forfeit game')
-      }
-    }
-
-    const playAgain = () => {
-      showGameResults.value = false
-      router.push('/vs')
-    }
-
-    const returnToLobby = () => {
-      showGameResults.value = false
-      router.push('/vs')
-    }
-
-    const loadPuzzle = async () => {
-      if (!currentGame.value || !currentGame.value.currentPuzzleId) return
-
-      try {
-        const puzzleResponse = await apiClient.get(`/puzzles/${currentGame.value.currentPuzzleId}`)
-        currentPuzzle.value = puzzleResponse.data
-        showPuzzleButton.value = false
-
-        code.value = currentPuzzle.value?.code || ''
-        initializeEditor()
-      } catch (e) {
-        console.error('Error loading puzzle:', e)
-        showNotification('error', 'Failed to load puzzle')
-      }
-    }
-
-    const initializeEditor = () => {
-      setTimeout(() => {
-        if (editorDiv.value && !editor.value) {
           editor.value = new EditorView({
             state: EditorState.create({
               doc: code.value,
@@ -781,281 +391,278 @@ export default {
                 EditorView.updateListener.of((v) => {
                   if (v.docChanged) {
                     code.value = v.state.doc.toString();
+                    if (gameState.value && currentPlayer.value) {
+                      gameStore.updateCurrentCode(currentPlayer.value.id, code.value);
+                    }
                   }
                 })
               ],
             }),
-            parent: editorDiv.value
-          })
-        } else if (editor.value) {
-          editor.value.dispatch({
-            changes: { from: 0, to: editor.value.state.doc.length, insert: code.value }
-          })
-        }
-      }, 100)
-    }
+            parent: editorContainer.value
+          });
 
-    const handleSubmit = async () => {
-      if (!currentPuzzle.value || !user.value || isSubmitting.value) return
+          console.log('Editor created successfully:', !!editor.value);
 
-      try {
-        isSubmitting.value = true
-
-        const response = await apiClient.post('/ai/solve', {
-          puzzleId: currentPuzzle.value.id,
-          userId: user.value.id,
-          userInput: userInput.value,
-          code: code.value,
-        })
-
-        textBubble.value = response.data.text || 'No response from AI'
-
-        if (response.data.code) {
-          code.value = response.data.code
-
-          if (editor.value) {
-            editor.value.dispatch({
-              changes: { from: 0, to: editor.value.state.doc.length, insert: code.value }
-            })
-          }
-        }
-
-        userInput.value = ''
-      } catch (error) {
-        textBubble.value = 'An error occurred. Please try again.'
-        console.error(error)
-      } finally {
-        isSubmitting.value = false
-      }
-    }
-
-    const markCompleted = async () => {
-      if (!currentPuzzle.value || !user.value || isSubmitting.value) return
-
-      try {
-        isSubmitting.value = true
-
-        const response = await apiClient.post('/ai/complete', {
-          puzzleId: currentPuzzle.value.id,
-          userId: user.value.id
-        })
-
-        if (response.data.success) {
-          scoreDetails.value = {
-            totalScore: response.data.scoreDetails.totalScore || 0,
-            timeScore: response.data.scoreDetails.timeScore || 0,
-            efficiencyScore: response.data.scoreDetails.efficiencyScore || 0,
-            tokenScore: response.data.scoreDetails.tokenScore || 0,
-            correctnessScore: response.data.scoreDetails.correctnessScore || 0,
-            codeQualityScore: response.data.scoreDetails.codeQualityScore || 0,
-            timeSeconds: response.data.scoreDetails.timeSeconds || 0,
-            interactionCount: response.data.scoreDetails.interactionCount || 0,
-            hasFailed: response.data.scoreDetails.hasFailed || false
-          }
-
-          textBubble.value = "Puzzle completed! Waiting for your opponent to finish..."
-          showNotification('info', 'Puzzle completed! Waiting for your opponent to finish...');
-
-          playerCompletedPuzzle.value = true;
-
-          submitSolution(false)
-        }
-      } catch (error) {
-        textBubble.value = 'An error occurred. Please try again.'
-        console.error(error)
-      } finally {
-        isSubmitting.value = false
-      }
-    }
-
-    const submitSolution = async (timeExpired = false) => {
-      if (!currentGame.value?.gameId || !user.value?.id) return
-
-      try {
-        let score = 0
-        if (scoreDetails.value && !scoreDetails.value.hasFailed) {
-          score = scoreDetails.value.totalScore
-        }
-
-        await apiClient.post('/game/submit-solution', {
-          gameId: currentGame.value.gameId,
-          userId: user.value.id,
-          puzzleId: currentGame.value.currentPuzzleId,
-          roundNumber: currentGame.value.currentRound,
-          score: score,
-          timeExpired: timeExpired
-        })
-
-      } catch (e) {
-        console.error('Error submitting solution:', e)
-        showNotification('error', 'Failed to submit solution')
-      }
-    }
-
-    const closeScorePopup = () => {
-      showScorePopup.value = false
-
-      if (!inGame.value) {
-        showScorePopup.value = false
-      }
-    }
-
-    const goToPuzzle = () => {
-      loadPuzzle()
-    }
-
-    const goToNextRound = () => {
-      showRoundScores.value = false
-      playerCompletedPuzzle.value = false
-      opponentCompletedPuzzle.value = false
-      loadPuzzle()
-    }
-
-    const handleOpponentCompleted = (message: any) => {
-      try {
-        const data = JSON.parse(message.content)
-
-        if (currentGame.value) {
-          showNotification('info', `${currentGame.value.opponentName} has completed the puzzle!`)
-
-          opponentCompletedPuzzle.value = true
-
-          if (playerCompletedPuzzle.value && opponentCompletedPuzzle.value) {
-            roundScores.value = {
-              round: currentGame.value.currentRound,
-              yourScore: currentGame.value.yourScore,
-              opponentScore: currentGame.value.opponentScore
+          // Force refresh the editor after creation to ensure styling is applied
+          setTimeout(() => {
+            if (editor.value) {
+              console.log('Refreshing editor with dispatch');
+              editor.value.dispatch({});
             }
-            showRoundScores.value = true
-          }
+          }, 100);
+        } catch (error) {
+          console.error('Error creating editor:', error);
         }
-      } catch (e) {
-        console.error('Error handling opponent completed:', e)
-      }
-    }
-
-    onMounted(() => {
-      loadUserData()
-
-      const preserveConnection = route.query.preserveConnection === 'true'
-
-      if (preserveConnection && window.gameSocketInstance) {
-        console.log('Reusing existing WebSocket connection from Lobby')
-        gameSocket.value = window.gameSocketInstance
-        preserveSocket.value = true
-
-        setupSocketEventHandlers()
-
-        joinGame()
       } else {
-        initGameWebSocket()
-      }
-    })
-
-    const setupSocketEventHandlers = () => {
-      if (!gameSocket.value) return
-
-      gameSocket.value.onmessage = (event) => {
-        const message = JSON.parse(event.data)
-        console.log('Game WebSocket message received:', message)
-        handleGameMessage(message)
-      }
-
-      gameSocket.value.onclose = () => {
-        console.log('Game WebSocket connection closed')
-        if (!preserveSocket.value) {
-          setTimeout(() => initGameWebSocket(), 5000)
-        }
-      }
-
-      gameSocket.value.onerror = (error) => {
-        console.error('Game WebSocket error:', error)
+        console.log('Container not available yet, retrying in 100ms');
+        setTimeout(initEditor, 100);
+        return;
       }
     }
+  };
 
-    const joinGame = () => {
-      if (!gameSocket.value || gameSocket.value.readyState !== WebSocket.OPEN || !user.value?.id) {
-        console.error('Cannot join game - WebSocket not open or user ID missing')
-        return
-      }
+  // Start the editor initialization process
+  initEditor();
+};
 
-      const gameIdFromUrl = route.query.gameId as string
+const forfeitGame = async () => {
+  try {
+    await gameStore.forfeitGame();
+    router.push('/vs');
+  } catch (error) {
+    console.error('Error forfeiting game:', error);
+  }
+};
 
-      if (gameIdFromUrl) {
-        const message = {
-          type: 'JOIN_GAME',
-          content: gameIdFromUrl,
-          userId: user.value.id
-        }
+const playAgain = () => {
+  showGameResults.value = false;
+  router.push('/vs');
+};
 
-        gameSocket.value.send(JSON.stringify(message))
-        console.log('JOIN_GAME message sent')
-      }
+const returnToLobby = () => {
+  router.push('/vs');
+};
+
+const closeScorePopup = () => {
+  showScorePopup.value = false;
+};
+
+// Handle prompt submission
+const handlePrompt = async () => {
+  if (isPrompting.value || !gameState.value?.puzzle || !currentPlayer.value) return;
+  isPrompting.value = true;
+
+  try {
+    // First, send the prompt through WebSocket to notify other players
+    await gameStore.submitPrompt(promptInput.value);
+
+    // Then, get the AI response directly (like in MultiStepSolve)
+    const response = await apiClient.post('/ai/solve', {
+      puzzleId: gameState.value.puzzle.id,
+      userId: currentPlayer.value.id,
+      userInput: promptInput.value,
+      code: code.value
+    });
+
+    // Update text bubble with AI response
+    textBubble.value = response.data.text;
+
+    // Update editor with new code
+    let newCode = null;
+
+    // Try to extract code from various possible response formats
+    if (response.data.code) {
+      console.log('Found code in response.data.code');
+      newCode = typeof response.data.code === 'string'
+        ? response.data.code
+        : (response.data.code.code || null);
     }
 
-    onBeforeUnmount(() => {
-      if (timerInterval.value) {
-        clearInterval(timerInterval.value)
-        timerInterval.value = null
-      }
+    // Check for completeCode property like in MultiStepSolve
+    if (!newCode && response.data.completeCode) {
+      console.log('Using completeCode property');
+      newCode = response.data.completeCode;
+    }
 
-      if (gameSocket.value && !preserveSocket.value) {
-        gameSocket.value.close()
-        gameSocket.value = null
+    if (newCode) {
+      console.log('Found valid code in response, length:', newCode.length);
+      code.value = newCode; // Always update the code ref
 
-        if (window.gameSocketInstance && !preserveSocket.value) {
-          delete window.gameSocketInstance
-        }
-      }
-
+      // If editor exists, update it
       if (editor.value) {
-        editor.value.destroy()
+        console.log('Updating editor with new code');
+        try {
+          // Small delay to ensure editor is ready
+          setTimeout(() => {
+            if (editor.value) {
+              editor.value.dispatch({
+                changes: { from: 0, to: editor.value.state.doc.length, insert: newCode }
+              });
+              console.log('Editor updated successfully');
+            }
+          }, 50);
+        } catch (error) {
+          console.error('Error updating editor:', error);
+        }
+      } else {
+        console.log('Editor not initialized yet, code.value has been updated');
       }
-    })
 
-    return {
-      user,
-      inGame,
-      currentGame,
-      timeRemaining,
-      gameNotification,
-      showGameResults,
-      gameResults,
-      defaultAvatar,
-      loading,
-      error,
-      formatTime,
-      forfeitGame,
-      playAgain,
-      returnToLobby,
-      goToPuzzle,
+      // Update the game state with new code through WebSocket
+      if (currentPlayer.value) {
+        gameStore.updateCurrentCode(currentPlayer.value.id, newCode);
+        console.log('Code updated in game state');
+      }
+    } else {
+      console.log('No valid code found in the response');
+      console.log('Response structure:', JSON.stringify(response.data).substring(0, 200) + '...');
+    }
 
-      currentPuzzle,
-      showPuzzleButton,
-      userInput,
-      code,
-      textBubble,
-      editorDiv,
-      isSubmitting,
-      showScorePopup,
-      scoreDetails,
-      loadPuzzle,
-      handleSubmit,
-      markCompleted,
-      closeScorePopup,
+    // Clear prompt input
+    promptInput.value = '';
 
-      showRoundScores,
-      roundScores,
-      goToNextRound
+  } catch (error) {
+    console.error('Error generating code:', error);
+    textBubble.value = 'Failed to generate code. Please try again.';
+  } finally {
+    isPrompting.value = false;
+  }
+};
+
+// Watch for game state changes to update code
+watch(() => gameState.value?.currentTurn, (newTurn) => {
+  if (gameState.value && editor.value && newTurn) {
+    const playerStatus = gameState.value.playerStatus[newTurn];
+    const currentCode = playerStatus?.code || '';
+    if (currentCode !== code.value) {
+      editor.value.dispatch({
+        changes: { from: 0, to: editor.value.state.doc.length, insert: currentCode }
+      });
+      code.value = currentCode;
     }
   }
-}
+});
+
+// Watch for player status changes to detect puzzle completion
+watch(() => gameState.value?.playerStatus, (newStatus, oldStatus) => {
+  if (gameState.value && currentPlayer.value && newStatus) {
+    const playerStatus = newStatus[currentPlayer.value.id];
+    const oldPlayerStatus = oldStatus?.[currentPlayer.value.id];
+
+    // Check if puzzle was just completed
+    if (playerStatus?.hasCompleted && !oldPlayerStatus?.hasCompleted) {
+      console.log('Puzzle completion detected in player status');
+      // Show score popup or handle completion
+      handleComplete();
+    }
+  }
+}, { deep: true });
+
+// Watch for AI responses from WebSocket (backup sync mechanism)
+watch(() => gameStore.aiResponse, (newResponse) => {
+  console.log('AI Response watcher triggered, received:', newResponse);
+
+  if (newResponse) {
+    // Only update text if we don't already have a response
+    if (newResponse.text && textBubble.value === "What would you like to do first?") {
+      console.log('Updating text bubble with:', newResponse.text);
+      textBubble.value = newResponse.text;
+    }
+
+    // Extract code from response
+    let codeToUpdate = null;
+
+    if (typeof newResponse.code === 'string' && newResponse.code.trim().length > 0) {
+      console.log('Found code as string in response');
+      codeToUpdate = newResponse.code;
+    } else if (newResponse.code && typeof newResponse.code === 'object') {
+      // Handle case where code might be an object property
+      console.log('Response code is an object, trying to extract code property');
+      if (newResponse.code.code && typeof newResponse.code.code === 'string') {
+        codeToUpdate = newResponse.code.code;
+      }
+    }
+
+    // If we still don't have code, check for a completeCode property
+    if (!codeToUpdate && newResponse.completeCode) {
+      console.log('Using completeCode property');
+      codeToUpdate = newResponse.completeCode;
+    }
+
+    // Update the editor with the new code
+    if (codeToUpdate && editor.value) {
+      console.log('Updating editor with code, length:', codeToUpdate.length);
+      console.log('First 50 chars of code:', codeToUpdate.substring(0, 50));
+
+      try {
+        // Small delay to ensure editor is ready
+        setTimeout(() => {
+          if (editor.value) {
+            editor.value.dispatch({
+              changes: { from: 0, to: editor.value.state.doc.length, insert: codeToUpdate }
+            });
+            code.value = codeToUpdate;
+            console.log('Editor updated successfully');
+          }
+        }, 50);
+      } catch (error) {
+        console.error('Error updating editor:', error);
+      }
+    } else if (codeToUpdate) {
+      // Store code in code.value even if editor isn't ready
+      console.log('Editor not initialized yet, storing in code.value');
+      console.log('Stored code length:', codeToUpdate.length);
+      code.value = codeToUpdate;
+    } else {
+      console.log('No valid code found in the response');
+    }
+  }
+}, { immediate: true });
+
+// Lifecycle
+onMounted(() => {
+  console.log('Game component mounted');
+
+  const gameId = route.params.gameId as string;
+  const player: Player = {
+    id: route.query.playerId as string,
+    username: route.query.username as string,
+    picture: route.query.picture as string
+  };
+
+  if (!gameId || !player.id || !player.username) {
+    console.error('Missing required game parameters');
+    router.push('/vs');
+    return;
+  }
+
+  console.log('Initializing game with ID:', gameId);
+  initializeGame(gameId, player);
+
+  console.log('Game initialized, setting inGame to true');
+  inGame.value = true;
+
+  // Use nextTick to ensure DOM is updated before checking references
+  nextTick(() => {
+    console.log('nextTick - Editor container ref:', editorContainer.value);
+  });
+});
+
+onUnmounted(() => {
+  if (timerInterval) clearInterval(timerInterval);
+  if (editor.value) editor.value.destroy();
+  cleanup();
+});
 </script>
 
 <style scoped>
 :deep(.cm-editor) {
-  height: 100%;
+  height: 100% !important;
+  width: 100% !important;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  background-color: #282c34 !important;
+  color: #abb2bf !important;
+  position: relative;
 }
 
 :deep(.cm-scroller) {
@@ -1075,8 +682,10 @@ export default {
 }
 
 :deep(.cm-content) {
-  background-color: #1f2329;
-  color: #abb2bf;
+  background-color: #1f2329 !important;
+  color: #abb2bf !important;
+  width: 100% !important;
+  position: relative;
 }
 
 :deep(.cm-line) {
@@ -1107,7 +716,26 @@ export default {
 :deep(.cm-variable) { color: #abb2bf; }
 :deep(.cm-type) { color: #e5c07b; }
 
-/* Animation for score popup */
+/* Scrollbar styling */
+:deep(.cm-scroller::-webkit-scrollbar) {
+  width: 10px;
+  height: 10px;
+}
+
+:deep(.cm-scroller::-webkit-scrollbar-track) {
+  background: #282c34;
+}
+
+:deep(.cm-scroller::-webkit-scrollbar-thumb) {
+  background: #4a4d57;
+  border-radius: 5px;
+}
+
+:deep(.cm-scroller::-webkit-scrollbar-thumb:hover) {
+  background: #5a5e6a;
+}
+
+/* Animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-20px); }
   to { opacity: 1; transform: translateY(0); }
