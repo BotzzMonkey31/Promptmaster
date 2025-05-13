@@ -8,6 +8,18 @@
         <span v-html="gameNotification"></span>
       </div>
 
+      <!-- Connection Status -->
+      <div class="fixed top-4 right-4 z-50">
+        <div v-if="isConnected" class="bg-green-100 text-green-800 px-3 py-1 rounded flex items-center">
+          <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+          Connected
+        </div>
+        <div v-else class="bg-red-100 text-red-800 px-3 py-1 rounded flex items-center">
+          <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+          Disconnected
+        </div>
+      </div>
+
       <!-- Game Content -->
       <template v-if="gameState && inGame">
         <div class="bg-white p-6 shadow-lg rounded-lg mb-6">
@@ -331,10 +343,27 @@ const handleSubmit = async () => {
   console.log('Game state exists:', !!gameState.value);
   console.log('Current player exists:', !!currentPlayer.value);
   console.log('Code length:', code.value.length);
+  console.log('Is connected:', gameStore.isConnected);
 
   if (isSubmitting.value || !gameState.value?.puzzle || !currentPlayer.value) {
     console.log('Cannot submit solution - missing game state or player');
     return;
+  }
+
+  // Check connection status
+  if (!gameStore.isConnected) {
+    console.log('Not connected to game server - attempting to reconnect');
+    textBubble.value = 'Connection to game server lost. Reconnecting...';
+    gameStore.attemptReconnect(gameState.value.id, currentPlayer.value);
+
+    // Add a delay to allow reconnection
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Check again
+    if (!gameStore.isConnected) {
+      textBubble.value = 'Failed to connect to game server. Please try again.';
+      return;
+    }
   }
 
   // Don't require editor to exist, just use the code.value

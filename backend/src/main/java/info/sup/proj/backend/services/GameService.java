@@ -55,6 +55,15 @@ public class GameService {
         // Find the game this player is in
         var game = findGameByPlayerId(playerId);
         if (game == null) {
+            System.out.println("Player " + playerId + " not found in any active game");
+            // List all active games for debugging
+            System.out.println("Active games: " + activeGames.keySet());
+            // Print all players in active games
+            activeGames.values().forEach(g -> {
+                System.out.println("Game " + g.getId() + " has players: " + 
+                    g.getPlayers().stream().map(Player::getId).toList());
+            });
+            
             throw new IllegalStateException("Player not in any active game");
         }
 
@@ -98,8 +107,12 @@ public class GameService {
         result.put("correctnessScore", correctnessScore);
         result.put("qualityScore", qualityScore);
         result.put("timeBonus", timeBonus);
-        result.put("totalScore", totalScore);
-
+        
+        // Update game status and broadcast it
+        Map<String, Object> gameState = new HashMap<>();
+        gameState.put("type", "GAME_STATE");
+        gameState.put("payload", game);
+        
         return result;
     }
 

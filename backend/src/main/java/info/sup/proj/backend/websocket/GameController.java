@@ -12,6 +12,8 @@ import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.services.AiService.ChatResponse;
 import java.util.Map;
 import java.util.HashMap;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
 
 @Controller
 public class GameController {
@@ -78,19 +80,74 @@ public class GameController {
 
     @MessageMapping("/game/{gameId}/submit")
     @SendTo("/topic/game/{gameId}")
-    public Map<String, Object> handleSubmission(String code, String gameId) {
-        return gameService.submitSolution(gameId, code);
+    public Map<String, Object> handleSubmission(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
+        String code = (String) message.get("code");
+        String playerId = (String) message.get("playerId");
+        
+        // Debug logging
+        System.out.println("Handling solution submission for game: " + gameId + ", player: " + playerId);
+        
+        if (code == null || playerId == null) {
+            throw new IllegalArgumentException("Missing required parameters: code or playerId");
+        }
+        
+        return gameService.submitSolution(playerId, code);
     }
 
     @MessageMapping("/game/{gameId}/complete")
     @SendTo("/topic/game/{gameId}")
-    public Game handlePuzzleCompletion(String gameId) {
-        return gameService.completePuzzle(gameId);
+    public Game handlePuzzleCompletion(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
+        String playerId = (String) message.get("playerId");
+        
+        // Debug logging
+        System.out.println("Handling puzzle completion for game: " + gameId + ", player: " + playerId);
+        
+        if (playerId == null) {
+            throw new IllegalArgumentException("Missing required parameter: playerId");
+        }
+        
+        return gameService.completePuzzle(playerId);
     }
 
     @MessageMapping("/game/{gameId}/forfeit")
     @SendTo("/topic/game/{gameId}")
-    public Game handleForfeit(String gameId) {
-        return gameService.forfeitGame(gameId);
+    public Game handleForfeit(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
+        String playerId = (String) message.get("playerId");
+        
+        // Debug logging
+        System.out.println("Handling forfeit for game: " + gameId + ", player: " + playerId);
+        
+        if (playerId == null) {
+            throw new IllegalArgumentException("Missing required parameter: playerId");
+        }
+        
+        return gameService.forfeitGame(playerId);
+    }
+
+    @MessageMapping("/game/{gameId}/code")
+    public void handleCodeUpdate(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
+        String playerId = (String) message.get("playerId");
+        String code = (String) message.get("code");
+        
+        // Debug logging
+        System.out.println("Handling code update for game: " + gameId + ", player: " + playerId);
+        
+        if (playerId == null || code == null) {
+            throw new IllegalArgumentException("Missing required parameters: playerId or code");
+        }
+        
+        Game game = gameService.getGame(gameId);
+        if (game != null) {
+            game.updateCurrentCode(playerId, code);
+            
+            // Broadcast updated game state
+            Map<String, Object> gameState = new HashMap<>();
+            gameState.put("type", "GAME_STATE");
+            gameState.put("payload", game);
+            
+            messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+        } else {
+            System.out.println("Game not found: " + gameId);
+        }
     }
 } 

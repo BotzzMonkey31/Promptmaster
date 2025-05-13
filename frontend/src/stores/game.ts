@@ -9,7 +9,8 @@ export const useGameStore = defineStore('game', {
     isConnected: false,
     lastError: null as { message: string } | null,
     stompClient: null as Client | null,
-    aiResponse: null as { text: string, code: any, completeCode?: string } | null
+    aiResponse: null as { text: string, code: any, completeCode?: string } | null,
+    connectionRetryCount: 0
   }),
 
   actions: {
@@ -36,6 +37,7 @@ export const useGameStore = defineStore('game', {
         onConnect: () => {
           console.log('Game STOMP connection established');
           this.isConnected = true;
+          this.connectionRetryCount = 0;
 
           // Subscribe to game updates
           this.stompClient?.subscribe(`/topic/game/${gameId}`, (message) => {
@@ -67,14 +69,41 @@ export const useGameStore = defineStore('game', {
               picture: player.picture
             })
           });
+
+          // Start connection health check
+          this.startConnectionHealthCheck();
         },
         onStompError: (frame) => {
           console.error('STOMP error:', frame);
           this.lastError = { message: 'Failed to connect to game server' };
+          this.isConnected = false;
+          this.attemptReconnect(gameId, player);
+        },
+        onDisconnect: () => {
+          console.log('STOMP disconnected');
+          this.isConnected = false;
+          this.attemptReconnect(gameId, player);
         }
       });
 
       this.stompClient.activate();
+    },
+
+    attemptReconnect(gameId: string, player: Player) {
+      if (this.connectionRetryCount >= 5) {
+        console.log('Max reconnection attempts reached');
+        return;
+      }
+
+      this.connectionRetryCount++;
+      console.log(`Attempting to reconnect (attempt ${this.connectionRetryCount})...`);
+
+      setTimeout(() => {
+        if (!this.isConnected && this.stompClient) {
+          console.log('Reconnecting to game server...');
+          this.initializeGame(gameId, player);
+        }
+      }, 2000);
     },
 
     handleWebSocketMessage(message: WebSocketMessage) {
@@ -132,18 +161,85 @@ export const useGameStore = defineStore('game', {
     submitPrompt(prompt: string) {
       if (!this.stompClient || !this.isConnected || !this.currentPlayer || !this.gameState) {
         console.error('Cannot submit prompt - missing required state');
+
+        // Try to reconnect if not connected
+        if (!this.isConnected && this.currentPlayer && this.gameState) {
+          console.log('Not connected when trying to submit prompt, attempting to reconnect...');
+          this.attemptReconnect(this.gameState.id, this.currentPlayer);
+          return;
+        }
         return;
       }
 
       console.log('Submitting prompt to server:', prompt);
+
+      // Store variables locally
+      const gameId = this.gameState.id;
+      const playerId = this.currentPlayer.id;
+      const username = this.currentPlayer.username;
+      const picture = this.currentPlayer.picture || '';
+
+      // First, ensure we're still in the game by re-joining
       this.stompClient.publish({
-        destination: '/app/game/prompt',
+        destination: '/app/game/join',
         body: JSON.stringify({
-          gameId: this.gameState.id,
-          playerId: this.currentPlayer.id,
-          prompt: prompt
+          gameId: gameId,
+          playerId: playerId,
+          username: username,
+          picture: picture
         })
       });
+
+      console.log('Re-joined game before submitting prompt');
+
+      // Then submit the prompt
+      setTimeout(() => {
+        if (this.stompClient && this.isConnected && this.gameState) {
+          this.stompClient.publish({
+            destination: '/app/game/prompt',
+            body: JSON.stringify({
+              gameId: gameId,
+              playerId: playerId,
+              prompt: prompt
+            })
+          });
+          console.log('Prompt submitted after re-joining');
+
+          // Start a connection health check after prompt submission
+          this.startConnectionHealthCheck();
+        } else {
+          console.error('Lost connection after re-joining, could not submit prompt');
+        }
+      }, 500);
+    },
+
+    // Add a method to periodically check connection health
+    startConnectionHealthCheck() {
+      // Clear any existing interval
+      this.stopConnectionHealthCheck();
+
+      // Create a new interval
+      const healthCheckInterval = window.setInterval(() => {
+        if (!this.stompClient || !this.isConnected) {
+          console.log('Connection health check: Not connected');
+
+          if (this.currentPlayer && this.gameState) {
+            this.attemptReconnect(this.gameState.id, this.currentPlayer);
+          }
+        } else {
+          console.log('Connection health check: Connected');
+        }
+      }, 5000); // Check every 5 seconds
+
+      // Store the interval ID for later cleanup
+      (this as any).healthCheckIntervalId = healthCheckInterval;
+    },
+
+    stopConnectionHealthCheck() {
+      if ((this as any).healthCheckIntervalId) {
+        window.clearInterval((this as any).healthCheckIntervalId);
+        (this as any).healthCheckIntervalId = null;
+      }
     },
 
     submitSolution(code: string) {
@@ -333,6 +429,9 @@ export const useGameStore = defineStore('game', {
     },
 
     cleanup() {
+      // First stop health check
+      this.stopConnectionHealthCheck();
+
       if (this.stompClient) {
         this.stompClient.deactivate();
         this.stompClient = null;
