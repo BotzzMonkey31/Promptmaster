@@ -79,8 +79,7 @@ public class GameController {
     }
 
     @MessageMapping("/game/{gameId}/submit")
-    @SendTo("/topic/game/{gameId}")
-    public Map<String, Object> handleSubmission(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
+    public void handleSubmission(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
         String code = (String) message.get("code");
         String playerId = (String) message.get("playerId");
         
@@ -91,7 +90,28 @@ public class GameController {
             throw new IllegalArgumentException("Missing required parameters: code or playerId");
         }
         
-        return gameService.submitSolution(playerId, code);
+        // Get submission result
+        Map<String, Object> result = gameService.submitSolution(playerId, code);
+        
+        // Add game ID for context
+        result.put("gameId", gameId);
+        
+        // Send the score directly to the player who submitted
+        messagingTemplate.convertAndSendToUser(
+            playerId,
+            "/queue/game",
+            result
+        );
+        
+        // Also update game state for all players
+        Game game = gameService.getGame(gameId);
+        if (game != null) {
+            Map<String, Object> gameState = new HashMap<>();
+            gameState.put("type", "GAME_STATE");
+            gameState.put("payload", game);
+            
+            messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+        }
     }
 
     @MessageMapping("/game/{gameId}/complete")

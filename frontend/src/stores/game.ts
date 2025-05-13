@@ -108,6 +108,35 @@ export const useGameStore = defineStore('game', {
 
     handleWebSocketMessage(message: WebSocketMessage) {
       console.log('Received game message:', message);
+
+      // First check if this is a direct score update (personal message)
+      // These come directly to the player's queue
+      if (message.success === true && message.score !== undefined) {
+        console.log('Detected direct score update message for this player:', message.score);
+
+        // If we have gameState and currentPlayer, update the score directly
+        if (this.gameState && this.currentPlayer) {
+          const playerId = this.currentPlayer.id;
+
+          // Ensure it's only processed by the player it's meant for
+          if (this.gameState.playerStatus[playerId]) {
+            const oldScore = this.gameState.playerStatus[playerId].score;
+            this.gameState.playerStatus[playerId].score = message.score;
+            console.log(`Updated player ${playerId} score: ${oldScore} -> ${message.score}`);
+
+            // Emit a score update event for components to react to
+            this.handleScoreUpdate({
+              score: message.score,
+              timeBonus: message.timeBonus,
+              qualityScore: message.qualityScore,
+              correctnessScore: message.correctnessScore
+            });
+          }
+        }
+        return;
+      }
+
+      // Handle other message types
       switch (message.type) {
         case 'GAME_STATE':
           this.gameState = message.payload;
@@ -138,7 +167,6 @@ export const useGameStore = defineStore('game', {
           break;
         case 'SUBMIT_SOLUTION':
           console.log('Handling solution submission response:', message);
-          // Handle any response needed for submission
           break;
         case 'ERROR':
           console.error('Received ERROR message from server:', message);
@@ -148,13 +176,11 @@ export const useGameStore = defineStore('game', {
             // Check for specific errors and handle them
             if (message.payload.message.includes('not in any active game')) {
               console.log('Player not in active game error detected - this is expected and will be handled');
-              // The rejoin is now built into each action that needs it
             }
           }
 
           this.lastError = { message: message.payload?.message || 'Unknown error' };
           break;
-        // Add other message type handlers as needed
       }
     },
 
@@ -453,6 +479,17 @@ export const useGameStore = defineStore('game', {
           code: code
         })
       });
+    },
+
+    // Add a new action for direct score updates
+    handleScoreUpdate(scoreData: {
+      score: number;
+      timeBonus?: number;
+      qualityScore?: number;
+      correctnessScore?: number;
+    }) {
+      console.log('Game store handling score update:', scoreData);
+      // This method just exists so components can subscribe to it with $onAction
     }
   }
 });

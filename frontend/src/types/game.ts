@@ -37,11 +37,17 @@ export type WebSocketMessageType =
   | 'AI_RESPONSE';
 
 export interface WebSocketMessage {
-  type: WebSocketMessageType;
+  type?: WebSocketMessageType;
   payload?: any;
   text?: string;
   code?: string;
   completeCode?: string;
+  success?: boolean;
+  score?: number;
+  correctnessScore?: number;
+  qualityScore?: number;
+  timeBonus?: number;
+  playerId?: string;
 }
 
 export interface GameError {

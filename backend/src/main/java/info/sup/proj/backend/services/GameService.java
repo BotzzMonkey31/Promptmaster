@@ -107,6 +107,7 @@ public class GameService {
         result.put("correctnessScore", correctnessScore);
         result.put("qualityScore", qualityScore);
         result.put("timeBonus", timeBonus);
+        result.put("playerId", playerId);
         
         // Update game status and broadcast it
         Map<String, Object> gameState = new HashMap<>();

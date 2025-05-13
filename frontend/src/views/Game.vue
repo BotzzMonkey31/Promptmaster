@@ -138,6 +138,58 @@
         </button>
       </div>
 
+      <!-- Waiting for Opponent Screen -->
+      <div v-if="showWaitingForOpponent" class="fixed inset-0 flex items-center justify-center z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+        <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md text-center">
+          <div class="flex justify-center mb-6">
+            <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Puzzle Complete!</h3>
+          <p class="text-gray-600 mb-6">Waiting for your opponent to finish...</p>
+          <div class="bg-blue-50 p-4 rounded mb-6">
+            <p class="text-lg">Your score for this round: <span class="font-bold text-blue-600">{{ gameState?.playerStatus[currentPlayer?.id || '']?.score || 0 }}</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Round Complete Popup -->
+      <div v-if="showRoundComplete" class="fixed inset-0 flex items-center justify-center z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+        <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md">
+          <h3 class="text-2xl font-bold mb-4 text-center">Round {{ gameState?.currentRound ? (gameState.currentRound - 1) : 1 }} Complete!</h3>
+          <p class="text-gray-600 text-center mb-6">Results for this round:</p>
+
+          <div class="flex justify-between items-center mb-6">
+            <div class="flex flex-col items-center">
+              <img :src="currentPlayer?.picture || defaultAvatar" class="w-16 h-16 rounded-full mb-2 border-2" :class="isWinningRound ? 'border-green-500' : 'border-blue-500'" alt="Your avatar" />
+              <p class="font-semibold">{{ currentPlayer?.username }}</p>
+              <p class="text-2xl font-bold" :class="isWinningRound ? 'text-green-600' : 'text-blue-600'">{{ gameState?.playerStatus[currentPlayer?.id || '']?.score || 0 }}</p>
+            </div>
+
+            <div class="flex flex-col items-center">
+              <div class="text-xl font-bold my-2">VS</div>
+              <div class="text-sm text-gray-500">Round {{ gameState?.currentRound ? (gameState.currentRound - 1) : 1 }}</div>
+            </div>
+
+            <div class="flex flex-col items-center">
+              <img :src="getOpponentAvatar()" class="w-16 h-16 rounded-full mb-2 border-2" :class="!isWinningRound ? 'border-green-500' : 'border-red-500'" alt="Opponent avatar" />
+              <p class="font-semibold">{{ getOpponentName() }}</p>
+              <p class="text-2xl font-bold" :class="!isWinningRound ? 'text-green-600' : 'text-red-600'">{{ getOpponentScore() }}</p>
+            </div>
+          </div>
+
+          <div class="flex justify-center">
+            <button
+              @click="startNextRound"
+              class="w-2/3 bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 shadow-md"
+            >
+              {{ isLastRound ? 'See Final Results' : 'Start Next Round' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Game Results Modal -->
       <div v-if="showGameResults && gameResults" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50"></div>
@@ -216,15 +268,28 @@
                 <span class="font-bold" :class="{'text-red-600': scoreDetails.tokenScore < 40}">{{ scoreDetails.tokenScore || 0 }}</span>
                 <span class="text-gray-500 text-sm ml-1">/100</span>
               </div>
-              </div>
             </div>
+          </div>
 
-            <button
-              @click="closeScorePopup"
-            class="w-full mt-6 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+          <button
+            id="continueButton"
+            ref="continueButtonRef"
+            @click="closeScorePopup"
+            class="w-full mt-6 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            Continue
+          </button>
+
+          <!-- Alternative button as backup -->
+          <div class="text-center mt-2">
+            <a
+              href="#"
+              @click.prevent="closeScorePopupForce"
+              class="text-blue-500 hover:underline text-sm"
             >
-              Continue
-            </button>
+              Having trouble? Click here instead
+            </a>
+          </div>
         </div>
       </div>
     </main>
@@ -270,6 +335,8 @@ const timeRemaining = ref(300);
 const gameNotification = ref('');
 const showGameResults = ref(false);
 const showScorePopup = ref(false);
+const showWaitingForOpponent = ref(false);
+const showRoundComplete = ref(false);
 const promptInput = ref('');
 const isPrompting = ref(false);
 
@@ -293,6 +360,9 @@ const scoreDetails = ref<{
 // Timer
 let timerInterval: number | undefined;
 
+// Component refs
+const continueButtonRef = ref<HTMLButtonElement | null>(null);
+
 // Computed
 const getOpponentName = () => {
   if (!gameState.value || !currentPlayer.value) return '';
@@ -310,6 +380,50 @@ const getOpponentAvatar = () => {
   if (!gameState.value || !currentPlayer.value) return defaultAvatar;
   const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
   return opponent?.picture || defaultAvatar;
+};
+
+const getOpponentHasCompleted = () => {
+  if (!gameState.value || !currentPlayer.value) return false;
+  const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
+  return opponent ? gameState.value.playerStatus[opponent.id]?.hasCompleted || false : false;
+};
+
+const isWinningRound = computed(() => {
+  if (!gameState.value || !currentPlayer.value) return false;
+  const yourScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
+  const opponentScore = getOpponentScore();
+  return yourScore > opponentScore;
+});
+
+const isLastRound = computed(() => {
+  if (!gameState.value) return false;
+  return gameState.value.currentRound >= gameState.value.totalRounds;
+});
+
+const startNextRound = () => {
+  showRoundComplete.value = false;
+  showWaitingForOpponent.value = false;
+
+  // If this was the last round, show final results
+  if (isLastRound.value) {
+    // Calculate final results
+    if (gameState.value && currentPlayer.value) {
+      const yourTotalScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
+      const opponentTotalScore = getOpponentScore();
+
+      gameResults.value = {
+        result: yourTotalScore > opponentTotalScore ? 'WIN' : yourTotalScore < opponentTotalScore ? 'LOSS' : 'DRAW',
+        yourScore: yourTotalScore,
+        opponentScore: opponentTotalScore,
+        eloChange: yourTotalScore > opponentTotalScore ? 15 : yourTotalScore < opponentTotalScore ? -10 : 0
+      };
+
+      showGameResults.value = true;
+    }
+  } else {
+    // Reset UI for next round
+    showPuzzleButton.value = true;
+  }
 };
 
 // Methods
@@ -371,9 +485,37 @@ const handleSubmit = async () => {
   isSubmitting.value = true;
 
   try {
-    await gameStore.submitSolution(code.value);
-    console.log('Solution submitted successfully to server');
-    textBubble.value = 'Solution submitted for evaluation!';
+    // Store current score before submission to detect changes
+    if (gameState.value && currentPlayer.value) {
+      const currentScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
+      console.log('Current score before submission:', currentScore);
+
+      // Submit the solution
+      await gameStore.submitSolution(code.value);
+      console.log('Solution submitted successfully to server');
+      textBubble.value = 'Solution submitted for evaluation!';
+
+      // Also mark as completed to ensure state is updated
+      console.log('Marking puzzle as completed after submission');
+      markPuzzleCompletedWithRetry();
+
+      // Wait for a moment to let the score update come through
+      setTimeout(() => {
+        // If score hasn't changed after timeout, check if we need to display results
+        if (gameState.value && currentPlayer.value) {
+          const newScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
+          console.log('Score after submission:', newScore);
+
+          if (newScore === currentScore) {
+            console.log('Score didn\'t change, may need to resubmit or check status');
+          } else {
+            // Score changed, trigger automatic completion
+            console.log('Score changed, marking puzzle as completed');
+            markPuzzleCompletedWithRetry();
+          }
+        }
+      }, 2000);
+    }
   } catch (error) {
     console.error('Error submitting solution:', error);
     textBubble.value = 'Failed to submit solution. Please try again.';
@@ -383,7 +525,61 @@ const handleSubmit = async () => {
 };
 
 const handleComplete = () => {
+  if (!gameState.value || !currentPlayer.value) return;
+
+  console.log('✅ COMPLETE: Marking puzzle completed for player:', currentPlayer.value.id);
+
+  // Only mark the player's own puzzle as completed
+  markPuzzleCompletedWithRetry();
+
+  // First show the score popup with individual score details
+  // Create score details to show in the popup
+  scoreDetails.value = {
+    totalScore: gameState.value.playerStatus[currentPlayer.value.id]?.score || 0,
+    timeScore: 85, // These could be real metrics from the server
+    efficiencyScore: 90,
+    tokenScore: 75,
+    timeSeconds: 300 - timeRemaining.value,
+    hasFailed: false
+  };
+
+  console.log('✅ COMPLETE: Showing score popup with details:', scoreDetails.value);
+
+  // Show the score popup first
+  showScorePopup.value = true;
+
+  // After closing the score popup, show either waiting screen or round complete
+  // The closeScorePopup method will handle this transition
+};
+
+// Add a retry mechanism to ensure completion gets registered
+const markPuzzleCompletedWithRetry = () => {
+  console.log('🔄 MARKING COMPLETE: Calling markPuzzleCompleted with retry');
+
+  // First call
   markPuzzleCompleted();
+
+  // Add backup call with delay in case first one fails
+  setTimeout(() => {
+    console.log('🔄 MARKING COMPLETE: Backup call to markPuzzleCompleted');
+    markPuzzleCompleted();
+
+    // Force a manual check for opponent completion after a delay
+    setTimeout(() => {
+      if (gameState.value && currentPlayer.value) {
+        console.log('🔄 MARKING COMPLETE: Checking player completed status');
+        const playerId = currentPlayer.value.id;
+        const isCompleted = gameState.value.playerStatus[playerId]?.hasCompleted;
+        console.log('Player completed status:', isCompleted);
+
+        // If still not marked as completed, force a state update
+        if (!isCompleted) {
+          console.log('⚠️ Player not marked as completed, forcing state update');
+          markPuzzleCompleted();
+        }
+      }
+    }, 2000);
+  }, 1000);
 };
 
 const loadPuzzle = () => {
@@ -473,7 +669,50 @@ const returnToLobby = () => {
 };
 
 const closeScorePopup = () => {
+  console.log('✅ CLOSE POPUP: Closing score popup');
   showScorePopup.value = false;
+
+  // Only show transition screens if we're the current player with a completed puzzle
+  if (!gameState.value || !currentPlayer.value) {
+    console.log('❌ CLOSE POPUP ERROR: Missing game state or current player');
+    return;
+  }
+
+  const playerId = currentPlayer.value.id;
+  const playerStatus = gameState.value.playerStatus[playerId];
+
+  console.log('✅ CLOSE POPUP: Player status for', playerId, ':', JSON.stringify(playerStatus));
+
+  try {
+    // Only proceed to waiting/round complete if this player has completed their puzzle
+    if (playerStatus?.hasCompleted) {
+      console.log('✅ CLOSE POPUP: Player has completed puzzle, checking opponent status');
+
+      // After showing individual score, either wait for opponent or show round results
+      if (getOpponentHasCompleted()) {
+        console.log('✅ CLOSE POPUP: Opponent already completed, showing round results');
+        showRoundComplete.value = true;
+      } else {
+        console.log('✅ CLOSE POPUP: Waiting for opponent to complete');
+        showWaitingForOpponent.value = true;
+      }
+    } else {
+      console.log('✅ CLOSE POPUP: Player puzzle not marked as completed yet');
+
+      // Force update player status by calling markPuzzleCompleted again
+      console.log('⚠️ CLOSE POPUP: Forcing puzzle completion and transitioning to waiting screen');
+      markPuzzleCompleted();
+
+      // Force transition to waiting screen anyway
+      showWaitingForOpponent.value = true;
+    }
+  } catch (error) {
+    console.error('❌ CLOSE POPUP ERROR:', error);
+
+    // Fallback: just show the waiting screen
+    console.log('⚠️ CLOSE POPUP: Using fallback transition to waiting screen');
+    showWaitingForOpponent.value = true;
+  }
 };
 
 // Handle prompt submission
@@ -572,17 +811,44 @@ watch(() => gameState.value?.currentTurn, (newTurn) => {
   }
 });
 
-// Watch for player status changes to detect puzzle completion
+// Watch for player status changes to detect puzzle completion and opponent completion
 watch(() => gameState.value?.playerStatus, (newStatus, oldStatus) => {
-  if (gameState.value && currentPlayer.value && newStatus) {
-    const playerStatus = newStatus[currentPlayer.value.id];
-    const oldPlayerStatus = oldStatus?.[currentPlayer.value.id];
+  // Ensure both gameState and currentPlayer exist
+  if (!gameState.value || !currentPlayer.value || !newStatus) return;
 
-    // Check if puzzle was just completed
-    if (playerStatus?.hasCompleted && !oldPlayerStatus?.hasCompleted) {
-      console.log('Puzzle completion detected in player status');
-      // Show score popup or handle completion
-      handleComplete();
+  const playerId = currentPlayer.value.id;
+  const playerStatus = newStatus[playerId];
+  const oldPlayerStatus = oldStatus?.[playerId];
+
+  console.log('📊 STATUS WATCH: Player status changed for:', playerId);
+
+  // IMPORTANT: We're removing auto-popup on score change since that could be
+  // detecting other players' score updates that were broadcast via game state
+  // The score popup should ONLY come from direct messages now
+
+  // Check if our own puzzle was just completed (by us)
+  if (playerStatus?.hasCompleted && !oldPlayerStatus?.hasCompleted) {
+    console.log('📊 STATUS WATCH: Puzzle completion detected for current player:', playerId);
+    // Handle our own completion
+    handleComplete();
+  }
+
+  // Check if we're waiting and opponent just completed
+  if (showWaitingForOpponent.value && getOpponentHasCompleted()) {
+    console.log('📊 STATUS WATCH: Opponent completed puzzle while we were waiting');
+    showWaitingForOpponent.value = false;
+    showRoundComplete.value = true;
+  }
+
+  // If all players completed and game is advancing to next round
+  const allCompleted = Object.values(newStatus).every(status => status.hasCompleted);
+  if (allCompleted) {
+    console.log('📊 STATUS WATCH: All players completed, showing round complete');
+    showWaitingForOpponent.value = false;
+
+    // If not showing round complete already, show it
+    if (!showRoundComplete.value) {
+      showRoundComplete.value = true;
     }
   }
 }, { deep: true });
@@ -648,6 +914,68 @@ watch(() => gameStore.aiResponse, (newResponse) => {
   }
 }, { immediate: true });
 
+// Watch for game state changes to detect new rounds
+watch(() => gameState.value?.currentRound, (newRound, oldRound) => {
+  if (newRound && oldRound && newRound > oldRound) {
+    console.log('New round detected:', newRound);
+
+    // Reset UI for the new round
+    showRoundComplete.value = false;
+    showWaitingForOpponent.value = false;
+    showPuzzleButton.value = true;
+    timeRemaining.value = 300;
+
+    // Reset code and text bubble
+    code.value = '';
+    textBubble.value = "What would you like to do for this round?";
+
+    // If editor exists, clear it
+    if (editor.value) {
+      editor.value.dispatch({
+        changes: { from: 0, to: editor.value.state.doc.length, insert: '' }
+      });
+    }
+  }
+});
+
+// Add a method to directly handle score updates
+const handleScoreUpdate = (scoreData: any) => {
+  console.log('🏆 SCORE HANDLER: Handling direct score update:', scoreData);
+
+  // Create score details to show in the popup
+  scoreDetails.value = {
+    totalScore: scoreData.score || 0,
+    timeScore: scoreData.timeBonus || 85,
+    efficiencyScore: scoreData.qualityScore || 90,
+    tokenScore: scoreData.correctnessScore || 75,
+    timeSeconds: 300 - timeRemaining.value,
+    hasFailed: false
+  };
+
+  // Show the score popup immediately
+  console.log('🏆 SCORE HANDLER: Showing score popup with details:', scoreDetails.value);
+  showScorePopup.value = true;
+};
+
+// Setup WebSocket message listener for score updates
+const unsubscribeAction = gameStore.$onAction(({ name, args }) => {
+  if (name === 'handleScoreUpdate') {
+    console.log('🎯 ACTION HOOK: Caught score update action:', args[0]);
+    handleScoreUpdate(args[0]);
+  }
+});
+
+// Add a forced close method as backup
+const closeScorePopupForce = () => {
+  console.log('⚡ FORCE CLOSE: Using force close method');
+  showScorePopup.value = false;
+
+  // Force waiting screen
+  setTimeout(() => {
+    showWaitingForOpponent.value = true;
+  }, 100);
+};
+
 // Lifecycle
 onMounted(() => {
   console.log('Game component mounted');
@@ -675,6 +1003,18 @@ onMounted(() => {
   nextTick(() => {
     console.log('nextTick - Editor container ref:', editorContainer.value);
   });
+
+  // Add a direct event listener to the continue button if needed
+  setTimeout(() => {
+    const continueButton = document.getElementById('continueButton');
+    if (continueButton) {
+      console.log('🔄 INIT: Adding direct event listener to continue button');
+      continueButton.addEventListener('click', () => {
+        console.log('⚡ DIRECT CLICK: Continue button clicked directly');
+        closeScorePopup();
+      });
+    }
+  }, 2000); // Wait for 2 seconds to make sure the component is fully mounted
 });
 
 onUnmounted(() => {
