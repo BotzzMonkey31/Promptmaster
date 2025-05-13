@@ -231,6 +231,39 @@
           </div>
         </div>
       </div>
+
+      <div v-if="showRoundScores && roundScores" class="fixed inset-0 flex items-center justify-center z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-70"></div>
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
+          <h2 class="text-3xl font-bold text-center mb-2">Round {{ roundScores.round }} Complete!</h2>
+          <p class="text-gray-600 text-center mb-6">Round scores:</p>
+
+          <div class="flex justify-between items-center mb-8">
+            <div class="text-center">
+              <div class="text-5xl font-bold" :class="roundScores.yourScore > roundScores.opponentScore ? 'text-green-600' : roundScores.yourScore < roundScores.opponentScore ? 'text-red-600' : 'text-blue-600'">
+                {{ roundScores.yourScore }}
+              </div>
+              <p class="text-sm mt-2">Your Score</p>
+            </div>
+            <div class="text-3xl font-bold">vs</div>
+            <div class="text-center">
+              <div class="text-5xl font-bold" :class="roundScores.opponentScore > roundScores.yourScore ? 'text-green-600' : roundScores.opponentScore < roundScores.yourScore ? 'text-red-600' : 'text-blue-600'">
+                {{ roundScores.opponentScore }}
+              </div>
+              <p class="text-sm mt-2">{{ currentGame?.opponentName }}'s Score</p>
+            </div>
+          </div>
+
+          <div class="flex justify-center">
+            <button
+              @click="goToNextRound"
+              class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-medium hover:from-blue-600 hover:to-purple-700"
+            >
+              Next Round
+            </button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -348,6 +381,11 @@ export default {
     const isSubmitting = ref(false)
     const showScorePopup = ref(false)
     const scoreDetails = ref<ScoreDetails | null>(null)
+
+    const showRoundScores = ref(false)
+    const roundScores = ref<any>(null)
+    const playerCompletedPuzzle = ref(false)
+    const opponentCompletedPuzzle = ref(false)
 
     const loadUserData = async () => {
       try {
@@ -482,6 +520,9 @@ export default {
         case 'ROUND_COMPLETE':
           handleRoundComplete(message)
           break
+        case 'OPPONENT_COMPLETED':
+          handleOpponentCompleted(message)
+          break
         case 'GAME_OVER':
           handleGameOver(message)
           break
@@ -560,6 +601,19 @@ export default {
       try {
         const resultData = JSON.parse(message.content)
         showNotification('info', resultData.message)
+
+        if (resultData.userId && resultData.userId !== user.value?.id) {
+          opponentCompletedPuzzle.value = true;
+
+          if (playerCompletedPuzzle.value && opponentCompletedPuzzle.value) {
+            showRoundScores.value = true;
+            roundScores.value = {
+              round: currentGame.value?.currentRound || 1,
+              yourScore: currentGame.value?.yourScore || 0,
+              opponentScore: currentGame.value?.opponentScore || 0
+            };
+          }
+        }
       } catch (e) {
         console.error('Error handling solution submission:', e)
       }
@@ -582,6 +636,19 @@ export default {
           showPuzzleButton.value = true
 
           showNotification('success', `Round ${roundData.currentRound} complete! Starting round ${roundData.nextRound}.`)
+
+          playerCompletedPuzzle.value = false
+          opponentCompletedPuzzle.value = false
+
+          roundScores.value = {
+            round: roundData.currentRound,
+            yourScore: roundData.yourScore,
+            opponentScore: roundData.opponentScore
+          }
+
+          if (playerCompletedPuzzle.value && opponentCompletedPuzzle.value) {
+            showRoundScores.value = true
+          }
         }
       } catch (e) {
         console.error('Error handling round complete:', e)
@@ -774,8 +841,6 @@ export default {
         })
 
         if (response.data.success) {
-          textBubble.value = "Congratulations! You've completed this puzzle! 🎉"
-
           scoreDetails.value = {
             totalScore: response.data.scoreDetails.totalScore || 0,
             timeScore: response.data.scoreDetails.timeScore || 0,
@@ -788,7 +853,10 @@ export default {
             hasFailed: response.data.scoreDetails.hasFailed || false
           }
 
-          showScorePopup.value = true
+          textBubble.value = "Puzzle completed! Waiting for your opponent to finish..."
+          showNotification('info', 'Puzzle completed! Waiting for your opponent to finish...');
+
+          playerCompletedPuzzle.value = true;
 
           submitSolution(false)
         }
@@ -826,10 +894,44 @@ export default {
 
     const closeScorePopup = () => {
       showScorePopup.value = false
+
+      if (!inGame.value) {
+        showScorePopup.value = false
+      }
     }
 
     const goToPuzzle = () => {
       loadPuzzle()
+    }
+
+    const goToNextRound = () => {
+      showRoundScores.value = false
+      playerCompletedPuzzle.value = false
+      opponentCompletedPuzzle.value = false
+      loadPuzzle()
+    }
+
+    const handleOpponentCompleted = (message: any) => {
+      try {
+        const data = JSON.parse(message.content)
+
+        if (currentGame.value) {
+          showNotification('info', `${currentGame.value.opponentName} has completed the puzzle!`)
+
+          opponentCompletedPuzzle.value = true
+
+          if (playerCompletedPuzzle.value && opponentCompletedPuzzle.value) {
+            roundScores.value = {
+              round: currentGame.value.currentRound,
+              yourScore: currentGame.value.yourScore,
+              opponentScore: currentGame.value.opponentScore
+            }
+            showRoundScores.value = true
+          }
+        }
+      } catch (e) {
+        console.error('Error handling opponent completed:', e)
+      }
     }
 
     onMounted(() => {
@@ -940,7 +1042,11 @@ export default {
       loadPuzzle,
       handleSubmit,
       markCompleted,
-      closeScorePopup
+      closeScorePopup,
+
+      showRoundScores,
+      roundScores,
+      goToNextRound
     }
   }
 }

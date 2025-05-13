@@ -545,9 +545,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             gameSession.addPlayer1Score(score);
         } else if (userId.equals(gameSession.getPlayer2Id())) {
             gameSession.addPlayer2Score(score);
-        }
-
-        if (gameSession.bothPlayersSubmitted()) {
+        }        if (gameSession.bothPlayersSubmitted()) {
             if (gameSession.getCurrentRound() < 3) {
                 gameSession.nextRound();
 
@@ -567,6 +565,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler implements GameTi
             );
 
             sendMessageToSession(session, resultMessage);
+            
+            // Notify the opponent that this player has completed the puzzle
+            Long opponentId = userId.equals(gameSession.getPlayer1Id()) 
+                ? gameSession.getPlayer2Id() 
+                : gameSession.getPlayer1Id();
+            
+            Map<String, Object> notificationData = new HashMap<>();
+            notificationData.put("userId", userId);
+            
+            GameMessage opponentNotification = new GameMessage(
+                "OPPONENT_COMPLETED",
+                objectMapper.writeValueAsString(notificationData),
+                opponentId
+            );
+            
+            sendMessageToUser(opponentId, opponentNotification);
         }
     }
 
