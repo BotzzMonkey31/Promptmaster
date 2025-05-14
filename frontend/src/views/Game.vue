@@ -483,7 +483,11 @@ const forfeitGame = async () => {
 };
 
 const playAgain = () => {
+  // Reset game state
   showGameResults.value = false;
+  gameResults.value = null;
+
+  // Return to lobby to set up a new game
   router.push('/vs');
 };
 
@@ -552,6 +556,16 @@ const closeScorePopup = async () => {
       }, 1000);
     } else {
       console.log('🎯 SCORE POPUP: Final round completed');
+
+      // For the final round, display a notification that the game is ending
+      gameNotification.value = 'Final round completed! Game ending...';
+
+      // Check if the game state is already ENDED
+      if (gameState.value.state === 'ENDED') {
+        console.log('🎯 SCORE POPUP: Game is already in ENDED state, showing results');
+      } else {
+        console.log('🎯 SCORE POPUP: Waiting for game to end...');
+      }
     }
   }
 };
@@ -1015,42 +1029,51 @@ watch(() => gameState.value?.playerStatus, (newStatus, oldStatus) => {
 
 // Watch for round changes in gameState
 watch(() => gameState.value?.currentRound, (newRound, oldRound) => {
-  if (newRound && oldRound && newRound > oldRound) {
-    console.log(`🔄 ROUND CHANGE: Round changed from ${oldRound} to ${newRound}`);
+  if (!newRound || !oldRound) return;
+  console.log(`📊 ROUND WATCHER: Round changed from ${oldRound} to ${newRound}`);
+});
 
-    // Reset UI for new round
-    showPuzzleButton.value = false; // Don't show the button, auto-start instead
-    timeRemaining.value = 300;
-    textBubble.value = "What would you like to do for this round?";
-    code.value = '';
+// Watch for game state changes to detect end of game
+watch(() => gameState.value?.state, (newState) => {
+  if (newState === 'ENDED') {
+    console.log('🏁 GAME OVER: Game has ended, showing results');
 
-    // If editor is initialized, clear it
-    if (editor.value) {
-      editor.value.dispatch({
-        changes: { from: 0, to: editor.value.state.doc.length, insert: '' }
-      });
+    // If score popup is showing, close it first
+    showScorePopup.value = false;
+
+    // Stop any running timer
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = undefined;
     }
 
-    // Show notification about new round
-    gameNotification.value = `Round ${oldRound} completed! Starting round ${newRound}...`;
-    setTimeout(() => {
-      if (gameNotification.value.includes(`Round ${oldRound} completed`)) {
-        gameNotification.value = '';
+    // Calculate results based on scores
+    if (gameState.value && currentPlayer.value) {
+      const playerId = currentPlayer.value.id;
+      const playerScore = gameState.value.playerStatus[playerId]?.score || 0;
+
+      // Find opponent
+      const opponent = gameState.value.players.find(p => p.id !== playerId);
+      const opponentScore = opponent ? gameState.value.playerStatus[opponent.id]?.score || 0 : 0;
+
+      // Determine result
+      let result: 'WIN' | 'LOSS' | 'DRAW' = 'DRAW';
+      if (playerScore > opponentScore) {
+        result = 'WIN';
+      } else if (playerScore < opponentScore) {
+        result = 'LOSS';
       }
-    }, 5000);
 
-    // Only start timer if it's not already running
-    if (!timerInterval) {
-      console.log('🔄 ROUND CHANGE: Starting timer for new round');
-      startTimer();
-    } else {
-      console.log('🔄 ROUND CHANGE: Timer already running, not restarting');
+      // Set game results to display
+      gameResults.value = {
+        result,
+        yourScore: playerScore,
+        opponentScore,
+        eloChange: result === 'WIN' ? 25 : result === 'LOSS' ? -15 : 0
+      };
+
+      showGameResults.value = true;
     }
-
-    // Make sure editor is initialized for the new round
-    setTimeout(() => {
-      initEditorWithRetries(true);
-    }, 500);
   }
 });
 </script>

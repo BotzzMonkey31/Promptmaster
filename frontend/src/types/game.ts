@@ -31,6 +31,7 @@ export interface GameState {
   puzzle: Puzzle;
   playerStatus: Record<string, PlayerStatus>;
   scores?: Record<string, number>;
+  state?: 'IN_PROGRESS' | 'ENDED';
 }
 
 export type WebSocketMessageType =
