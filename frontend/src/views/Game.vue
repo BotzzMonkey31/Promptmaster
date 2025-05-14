@@ -2,9 +2,9 @@
   <div class="bg-gray-100 min-h-screen">
     <main class="container mx-auto py-8">
 
-      <div v-if="gameNotification" class="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded relative mb-6">
+      <!-- <div v-if="gameNotification" class="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded relative mb-6">
         <span v-html="gameNotification"></span>
-      </div>
+      </div> -->
 
       <template v-if="gameState && inGame">
         <div class="bg-white p-6 shadow-lg rounded-lg mb-6">
@@ -63,7 +63,7 @@
                 <div class="flex justify-between w-full">
                   <button
                     @click="handlePrompt"
-                    :disabled="isPrompting || !isPlayerTurn"
+                    :disabled="isPrompting"
                     class="px-6 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-70 disabled:cursor-not-allowed flex items-center"
                   >
                     <span v-if="!isPrompting">Generate Code</span>
@@ -77,7 +77,7 @@
                   </button>
                   <button
                     @click="handleSubmit"
-                    :disabled="isSubmitting || !isPlayerTurn"
+                    :disabled="isSubmitting"
                     class="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     Submit Solution
@@ -559,65 +559,89 @@ const closeScorePopup = async () => {
 const handlePrompt = async () => {
   if (isPrompting.value || !gameState.value?.puzzle || !currentPlayer.value) return;
   isPrompting.value = true;
+  textBubble.value = 'Thinking...';
+
+  // Safety timeout to ensure isPrompting doesn't get stuck
+  const promptingTimeout = setTimeout(() => {
+    if (isPrompting.value) {
+      console.log('Prompting timeout triggered - resetting isPrompting state');
+      isPrompting.value = false;
+      textBubble.value = 'Request timed out. Please try again.';
+    }
+  }, 60000); // 60 second max timeout for generating
 
   try {
-    await gameStore.submitPrompt(promptInput.value);
+    // Use the improved submitPrompt method that returns a Promise
+    const aiResponse = await gameStore.submitPrompt(promptInput.value) as {
+      text?: string;
+      code?: string | { code?: string };
+      completeCode?: string;
+    };
+    console.log('AI response received:', aiResponse);
 
-    const response = await apiClient.post('/ai/solve', {
-      puzzleId: gameState.value.puzzle.id,
-      userId: currentPlayer.value.id,
-      userInput: promptInput.value,
-      code: code.value
-    });
+    if (aiResponse) {
+      if (aiResponse.text) {
+        textBubble.value = aiResponse.text;
+      }
 
-    textBubble.value = response.data.text;
+      let newCode = null;
 
-    let newCode = null;
+      if (typeof aiResponse.code === 'string' && aiResponse.code.trim().length > 0) {
+        console.log('Found code as string in response');
+        newCode = aiResponse.code;
+      } else if (aiResponse.code && typeof aiResponse.code === 'object') {
+        console.log('Response code is an object, trying to extract code property');
+        if (aiResponse.code.code && typeof aiResponse.code.code === 'string') {
+          newCode = aiResponse.code.code;
+        }
+      }
 
-    if (response.data.code) {
-      console.log('Found code in response.data.code');
-      newCode = typeof response.data.code === 'string'
-        ? response.data.code
-        : (response.data.code.code || null);
-    }
+      if (!newCode && aiResponse.completeCode) {
+        console.log('Using completeCode property');
+        newCode = aiResponse.completeCode;
+      }
 
-    if (!newCode && response.data.completeCode) {
-      console.log('Using completeCode property');
-      newCode = response.data.completeCode;
-    }
+      if (editor.value && newCode) {
+        console.log('Updating editor with new code, length:', newCode.length);
+        console.log('First 50 chars:', newCode.substring(0, 50));
 
-    if (editor.value && newCode) {
-      console.log('Updating editor with new code, length:', newCode.length);
-      console.log('First 50 chars:', newCode.substring(0, 50));
+        try {
+          setTimeout(() => {
+            if (editor.value) {
+              editor.value.dispatch({
+                changes: { from: 0, to: editor.value.state.doc.length, insert: newCode }
+              });
+              code.value = newCode;
 
-      try {
-        setTimeout(() => {
-          if (editor.value) {
-            editor.value.dispatch({
-              changes: { from: 0, to: editor.value.state.doc.length, insert: newCode }
-            });
-            code.value = newCode;
-
-            if (currentPlayer.value) {
-              gameStore.updateCurrentCode(currentPlayer.value.id, newCode);
-              console.log('Code updated in game state');
+              if (currentPlayer.value) {
+                gameStore.updateCurrentCode(currentPlayer.value.id, newCode);
+                console.log('Code updated in game state');
+              }
             }
-          }
-        }, 50);
-      } catch (error) {
-        console.error('Error updating editor:', error);
+          }, 50);
+        } catch (error) {
+          console.error('Error updating editor:', error);
+          textBubble.value = 'Error applying code changes. Please try again.';
+        }
+      } else {
+        console.log('Not updating editor. Editor exists:', !!editor.value, 'Code exists:', !!newCode);
+        if (!newCode) {
+          textBubble.value = 'The AI did not generate any code. Please try a more specific prompt.';
+        }
       }
     } else {
-      console.log('Not updating editor. Editor exists:', !!editor.value, 'Code exists:', !!newCode);
-      console.log('Response structure:', JSON.stringify(response.data).substring(0, 200) + '...');
+      console.error('No valid AI response received');
+      textBubble.value = 'Failed to get a response. Please try again with a more specific prompt.';
     }
 
     promptInput.value = '';
 
   } catch (error) {
     console.error('Error generating code:', error);
-    textBubble.value = 'Failed to generate code. Please try again.';
+    textBubble.value = error instanceof Error ? `Error: ${error.message}` : 'Failed to generate code. Please try again.';
   } finally {
+    // Clear the safety timeout since we're done
+    clearTimeout(promptingTimeout);
     isPrompting.value = false;
   }
 };

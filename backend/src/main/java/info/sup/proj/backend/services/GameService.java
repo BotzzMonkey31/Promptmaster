@@ -64,6 +64,9 @@ public class GameService {
             throw new IllegalStateException("Player not in any active game");
         }
 
+        // Update the player's code in the game
+        game.updateCurrentCode(playerId, code);
+
         // Get the current puzzle
         Puzzle currentPuzzle = game.getCurrentPuzzle();
         
@@ -166,18 +169,27 @@ public class GameService {
     }
 
     public Game completePuzzle(String playerId) {
-        var game = findGameByPlayerId(playerId);
+        Game game = findGameByPlayerId(playerId);
         if (game == null) {
             throw new IllegalStateException("Player not in any active game");
         }
-
+        
+        // Mark this specific player as completed, but don't affect other players
         game.markPlayerCompleted(playerId);
-        System.out.println("COMPLETE PUZZLE: Marked player " + playerId + " as completed");
-        System.out.println("COMPLETE PUZZLE: Current round: " + game.getCurrentRound());
-        System.out.println("COMPLETE PUZZLE: All players completed: " + game.allPlayersCompleted());
-
-        // We no longer automatically advance to next round
-        // Players must explicitly request it via the startNextRound method
+        
+        System.out.println("Player " + playerId + " completed puzzle in game " + game.getId());
+        
+        // Check if all players have completed their puzzles
+        if (game.allPlayersCompleted()) {
+            System.out.println("All players completed puzzles in game " + game.getId() + ", checking for next round");
+            
+            // If this was the final round, end the game
+            if (game.getCurrentRound() >= game.getTotalRounds()) {
+                System.out.println("Final round completed for game " + game.getId() + ", ending game");
+                game.endGame();
+            }
+        }
+        
         return game;
     }
 
@@ -233,6 +245,12 @@ public class GameService {
         int totalRounds = game.getTotalRounds();
         System.out.println("START NEXT ROUND: Current round: " + currentRound + " of " + totalRounds);
         
+        // Enforce valid round progression
+        if (currentRound <= 0) {
+            System.out.println("START NEXT ROUND ERROR: Invalid current round: " + currentRound + ", resetting to 1");
+            currentRound = 1;
+        }
+        
         if (currentRound >= totalRounds) {
             System.out.println("START NEXT ROUND: Already at final round, not advancing");
             return game;
@@ -275,6 +293,14 @@ public class GameService {
             
             // Calculate the next round number explicitly 
             int nextRound = currentRound + 1;
+            
+            // Validate the next round number
+            if (nextRound > totalRounds) {
+                System.out.println("START NEXT ROUND ERROR: Next round " + nextRound + 
+                                  " exceeds total rounds " + totalRounds + ", capping at " + totalRounds);
+                nextRound = totalRounds;
+            }
+            
             System.out.println("START NEXT ROUND: Advancing from round " + currentRound + " to " + nextRound);
             
             // Add a small delay to ensure any in-flight messages are processed
@@ -290,7 +316,11 @@ public class GameService {
             if (verifiedCurrentRound != currentRound) {
                 System.out.println("START NEXT ROUND: Round changed during processing! Was " + currentRound + 
                                   ", now " + verifiedCurrentRound + ". Adjusting next round calculation.");
+                // Ensure we only move forward by 1 round at a time
                 nextRound = verifiedCurrentRound + 1;
+                if (nextRound > totalRounds) {
+                    nextRound = totalRounds;
+                }
             }
             
             // Start the next round with an explicit round number to prevent any skipping

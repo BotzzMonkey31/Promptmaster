@@ -20,6 +20,7 @@ public class Game {
         this.puzzle = puzzle;
         this.totalRounds = totalRounds;
         this.currentRound = 1;
+        System.out.println("GAME INIT: Created new game " + id + " starting with round 1");
         this.currentTurn = players.get(0).getId();
         this.playerStatus = new HashMap<>();
         this.state = GameState.IN_PROGRESS;
@@ -67,6 +68,10 @@ public class Game {
 
     public String getCurrentCode() {
         return playerCode.get(currentTurn);
+    }
+
+    public String getPlayerCode(String playerId) {
+        return playerCode.getOrDefault(playerId, "");
     }
 
     public void updateCurrentCode(String playerId, String code) {

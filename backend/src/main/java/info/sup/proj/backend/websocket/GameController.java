@@ -70,30 +70,117 @@ public class GameController {
         String playerId = message.get("playerId").toString();
         String prompt = message.get("prompt").toString();
 
-        Game game = gameService.getGame(gameId);
-        if (game != null && game.getCurrentTurn().equals(playerId)) {
-            // Get current code context
-            String currentCode = game.getCurrentCode();
+        System.out.println("GAME CONTROLLER: Received prompt from player " + playerId + " for game " + gameId);
+        System.out.println("GAME CONTROLLER: Prompt content: \"" + prompt + "\"");
 
-            // Generate response using AI service
-            ChatResponse aiResponse = aiService.generateResponse(
-                prompt,
-                currentCode,
-                game.getPuzzle().getType()
-            );
+        try {
+            Game game = gameService.getGame(gameId);
+            if (game != null) {
+                // Check if the player is part of this game
+                if (game.hasPlayer(playerId)) {
+                    // Get player-specific code context instead of current turn player's code
+                    String currentCode = game.getPlayerCode(playerId);
+                    if (currentCode == null || currentCode.isEmpty()) {
+                        // If player has no code yet, use empty string
+                        currentCode = "";
+                    }
+                    
+                    System.out.println("GAME CONTROLLER: Generating AI response for player " + playerId);
+                    
+                    try {
+                        // Generate response using AI service
+                        ChatResponse aiResponse = aiService.generateResponse(
+                            prompt,
+                            currentCode,
+                            game.getPuzzle().getType()
+                        );
 
-            // Create response message
-            Map<String, Object> response = new HashMap<>();
-            response.put("type", "AI_RESPONSE");
-            response.put("text", aiResponse.getText());
-            response.put("code", aiResponse.getCode());
+                        System.out.println("GAME CONTROLLER: AI response generated successfully");
+                        System.out.println("GAME CONTROLLER: Response text length: " + 
+                                          (aiResponse.getText() != null ? aiResponse.getText().length() : 0));
+                        System.out.println("GAME CONTROLLER: Response code length: " + 
+                                          (aiResponse.getCode() != null ? aiResponse.getCode().length() : 0));
 
-            // Send response only to the requesting player
-            messagingTemplate.convertAndSendToUser(
-                playerId,
-                "/queue/game",
-                response
-            );
+                        // Create response message
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("type", "AI_RESPONSE");
+                        response.put("text", aiResponse.getText());
+                        response.put("code", aiResponse.getCode());
+
+                        // Send response only to the requesting player
+                        messagingTemplate.convertAndSendToUser(
+                            playerId,
+                            "/queue/game",
+                            response
+                        );
+                        System.out.println("GAME CONTROLLER: AI response sent to player " + playerId);
+                    } catch (Exception e) {
+                        System.err.println("GAME CONTROLLER ERROR: Failed to generate AI response: " + e.getMessage());
+                        e.printStackTrace();
+                        
+                        // Send error response to player
+                        Map<String, Object> errorResponse = new HashMap<>();
+                        errorResponse.put("type", "AI_RESPONSE");
+                        errorResponse.put("text", "Sorry, I encountered an error while generating code. Please try a different prompt.");
+                        errorResponse.put("code", "// Error generating code\n// Please try a different prompt");
+                        
+                        messagingTemplate.convertAndSendToUser(
+                            playerId,
+                            "/queue/game",
+                            errorResponse
+                        );
+                    }
+                } else {
+                    System.out.println("GAME CONTROLLER ERROR: Player " + playerId + " is not part of game " + gameId);
+                    
+                    // Send error response to player
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("type", "ERROR");
+                    Map<String, String> payload = new HashMap<>();
+                    payload.put("message", "You are not part of this game");
+                    errorResponse.put("payload", payload);
+                    
+                    messagingTemplate.convertAndSendToUser(
+                        playerId,
+                        "/queue/game",
+                        errorResponse
+                    );
+                }
+            } else {
+                System.out.println("GAME CONTROLLER ERROR: Game " + gameId + " not found for prompt from player " + playerId);
+                
+                // Send error response to player
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("type", "ERROR");
+                Map<String, String> payload = new HashMap<>();
+                payload.put("message", "Game not found");
+                errorResponse.put("payload", payload);
+                
+                messagingTemplate.convertAndSendToUser(
+                    playerId,
+                    "/queue/game",
+                    errorResponse
+                );
+            }
+        } catch (Exception e) {
+            System.err.println("GAME CONTROLLER ERROR: Unhandled exception in handlePrompt: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Send a fallback response to ensure the client isn't left hanging
+            try {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("type", "AI_RESPONSE");
+                errorResponse.put("text", "Sorry, I encountered an error processing your request.");
+                errorResponse.put("code", "// Error occurred\n// Please try again");
+                
+                messagingTemplate.convertAndSendToUser(
+                    playerId,
+                    "/queue/game",
+                    errorResponse
+                );
+            } catch (Exception ex) {
+                System.err.println("GAME CONTROLLER ERROR: Failed to send error response: " + ex.getMessage());
+            }
         }
     }
 
@@ -109,27 +196,41 @@ public class GameController {
             throw new IllegalArgumentException("Missing required parameters: code or playerId");
         }
         
-        // Get submission result
-        Map<String, Object> result = gameService.submitSolution(playerId, code);
-        
-        // Add game ID for context
-        result.put("gameId", gameId);
-        
-        // Send the score directly to the player who submitted
-        messagingTemplate.convertAndSendToUser(
-            playerId,
-            "/queue/game",
-            result
-        );
-        
-        // Also update game state for all players
         Game game = gameService.getGame(gameId);
-        if (game != null) {
+        if (game != null && game.hasPlayer(playerId)) {
+            // Get submission result - allowing any player to submit regardless of turn
+            Map<String, Object> result = gameService.submitSolution(playerId, code);
+            
+            // Add game ID for context
+            result.put("gameId", gameId);
+            
+            // Send the score directly to the player who submitted
+            messagingTemplate.convertAndSendToUser(
+                playerId,
+                "/queue/game",
+                result
+            );
+            
+            // Also update game state for all players
             Map<String, Object> gameState = new HashMap<>();
             gameState.put("type", "GAME_STATE");
             gameState.put("payload", game);
             
             messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+        } else {
+            System.out.println("Game not found or player not in game: " + gameId + ", player: " + playerId);
+            // Send error response to player
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("type", "ERROR");
+            Map<String, String> payload = new HashMap<>();
+            payload.put("message", "Game not found or you are not part of this game");
+            errorResponse.put("payload", payload);
+            
+            messagingTemplate.convertAndSendToUser(
+                playerId,
+                "/queue/game",
+                errorResponse
+            );
         }
     }
 
@@ -177,14 +278,17 @@ public class GameController {
         
         Game game = gameService.getGame(gameId);
         if (game != null) {
-            game.updateCurrentCode(playerId, code);
-            
-            // Broadcast updated game state
-            Map<String, Object> gameState = new HashMap<>();
-            gameState.put("type", "GAME_STATE");
-            gameState.put("payload", game);
-            
-            messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+            if (game.hasPlayer(playerId)) {
+                game.updateCurrentCode(playerId, code);
+                
+                Map<String, Object> gameState = new HashMap<>();
+                gameState.put("type", "GAME_STATE");
+                gameState.put("payload", game);
+                
+                messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+            } else {
+                System.out.println("Player " + playerId + " not found in game: " + gameId);
+            }
         } else {
             System.out.println("Game not found: " + gameId);
         }

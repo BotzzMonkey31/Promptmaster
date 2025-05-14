@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { Player, GameState, WebSocketMessage } from '../types/game';
 import { Client } from '@stomp/stompjs';
+import { watch } from 'vue';
 
 export const useGameStore = defineStore('game', {
   state: () => ({
@@ -242,51 +243,85 @@ export const useGameStore = defineStore('game', {
         if (!this.isConnected && this.currentPlayer && this.gameState) {
           console.log('Not connected when trying to submit prompt, attempting to reconnect...');
           this.attemptReconnect(this.gameState.id, this.currentPlayer);
-          return;
+          return Promise.reject(new Error('Not connected to game server'));
         }
-        return;
+        return Promise.reject(new Error('Missing required state'));
       }
 
       console.log('Submitting prompt to server:', prompt);
 
-      // Store variables locally
-      const gameId = this.gameState.id;
-      const playerId = this.currentPlayer.id;
-      const username = this.currentPlayer.username;
-      const picture = this.currentPlayer.picture || '';
+      // Clear any previous AI response to ensure we detect the new one
+      this.aiResponse = null;
 
-      // First, ensure we're still in the game by re-joining
-      this.stompClient.publish({
-        destination: '/app/game/join',
-        body: JSON.stringify({
-          gameId: gameId,
-          playerId: playerId,
-          username: username,
-          picture: picture
-        })
+      return new Promise((resolve, reject) => {
+        // Store variables locally and ensure they're not null
+        const gameId = this.gameState!.id;
+        const playerId = this.currentPlayer!.id;
+        const username = this.currentPlayer!.username;
+        const picture = this.currentPlayer!.picture || '';
+        // We've already checked that stompClient is not null in the outer if statement
+        const stompClient = this.stompClient!;
+
+        // Setup response listener before sending prompt
+        const responseTimeout = setTimeout(() => {
+          console.error('Timeout waiting for AI response');
+          reject(new Error('AI response timeout'));
+        }, 30000); // 30 second timeout for slower responses
+
+        // Watch for changes in aiResponse
+        const unwatch = watch(() => this.aiResponse, (newResponse) => {
+          // If we get any non-null response, consider it valid
+          if (newResponse !== null) {
+            console.log('AI response detected in watcher:', newResponse);
+            clearTimeout(responseTimeout);
+            unwatch(); // Stop watching
+
+            if (newResponse) {
+              console.log('AI response received successfully');
+              resolve(newResponse);
+            } else {
+              console.error('AI response was unexpected format');
+              reject(new Error('Invalid AI response format'));
+            }
+          }
+        }, { deep: true });
+
+        // First, ensure we're still in the game by re-joining
+        stompClient.publish({
+          destination: '/app/game/join',
+          body: JSON.stringify({
+            gameId: gameId,
+            playerId: playerId,
+            username: username,
+            picture: picture
+          })
+        });
+
+        console.log('Re-joined game before submitting prompt');
+
+        // Then submit the prompt
+        setTimeout(() => {
+          if (stompClient && this.isConnected) {
+            stompClient.publish({
+              destination: '/app/game/prompt',
+              body: JSON.stringify({
+                gameId: gameId,
+                playerId: playerId,
+                prompt: prompt
+              })
+            });
+            console.log('Prompt submitted after re-joining');
+
+            // Start a connection health check after prompt submission
+            this.startConnectionHealthCheck();
+          } else {
+            console.error('Lost connection after re-joining, could not submit prompt');
+            clearTimeout(responseTimeout);
+            unwatch();
+            reject(new Error('Lost connection after re-joining'));
+          }
+        }, 500);
       });
-
-      console.log('Re-joined game before submitting prompt');
-
-      // Then submit the prompt
-      setTimeout(() => {
-        if (this.stompClient && this.isConnected && this.gameState) {
-          this.stompClient.publish({
-            destination: '/app/game/prompt',
-            body: JSON.stringify({
-              gameId: gameId,
-              playerId: playerId,
-              prompt: prompt
-            })
-          });
-          console.log('Prompt submitted after re-joining');
-
-          // Start a connection health check after prompt submission
-          this.startConnectionHealthCheck();
-        } else {
-          console.error('Lost connection after re-joining, could not submit prompt');
-        }
-      }, 500);
     },
 
     // Add a method to periodically check connection health
@@ -607,15 +642,27 @@ export const useGameStore = defineStore('game', {
     },
 
     updateCurrentCode(playerId: string, code: string) {
-      if (!this.stompClient || !this.isConnected || !this.gameState) return;
+      if (!this.stompClient || !this.isConnected || !this.gameState) {
+        console.log('Cannot update code - disconnected or missing game state');
+        return;
+      }
 
-      this.stompClient.publish({
-        destination: `/app/game/${this.gameState.id}/code`,
-        body: JSON.stringify({
-          playerId: playerId,
-          code: code
-        })
-      });
+      try {
+        this.stompClient.publish({
+          destination: `/app/game/${this.gameState.id}/code`,
+          body: JSON.stringify({
+            playerId: playerId,
+            code: code
+          })
+        });
+        console.log(`Code updated for player ${playerId}`);
+      } catch (error) {
+        console.error('Error updating code:', error);
+        // If there's an error, try reconnecting
+        if (this.currentPlayer && this.gameState) {
+          this.attemptReconnect(this.gameState.id, this.currentPlayer);
+        }
+      }
     },
 
     // Add a new action for direct score updates
