@@ -1,26 +1,11 @@
-<!-- Game.vue -->
 <template>
   <div class="bg-gray-100 min-h-screen">
     <main class="container mx-auto py-8">
 
-      <!-- Game Notification -->
       <div v-if="gameNotification" class="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded relative mb-6">
         <span v-html="gameNotification"></span>
       </div>
 
-      <!-- Connection Status -->
-      <div class="fixed top-4 right-4 z-50">
-        <div v-if="isConnected" class="bg-green-100 text-green-800 px-3 py-1 rounded flex items-center">
-          <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-          Connected
-        </div>
-        <div v-else class="bg-red-100 text-red-800 px-3 py-1 rounded flex items-center">
-          <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-          Disconnected
-        </div>
-      </div>
-
-      <!-- Game Content -->
       <template v-if="gameState && inGame">
         <div class="bg-white p-6 shadow-lg rounded-lg mb-6">
         <div class="flex justify-between items-center mb-4">
@@ -32,7 +17,6 @@
           </div>
         </div>
 
-          <!-- Player Info -->
         <div class="flex justify-between items-center mb-6">
           <div class="flex items-center">
               <img :src="currentPlayer?.picture || defaultAvatar" class="w-10 h-10 rounded-full mr-3 border-2 border-blue-500" alt="Your avatar" />
@@ -53,17 +37,15 @@
           </div>
         </div>
 
-          <!-- Puzzle Content -->
-          <div v-if="gameState.puzzle && !showPuzzleButton" class="mt-6">
+          <div class="mt-6">
           <div class="flex flex-col items-stretch p-6 bg-light-50 rounded-xl shadow-lg mx-auto gap-6">
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">{{ gameState.puzzle.name }}</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">{{ gameState.puzzle?.name || 'Loading puzzle...' }}</h3>
                 <div class="space-y-4">
-                  <p class="text-gray-600">{{ gameState.puzzle.description }}</p>
+                  <p class="text-gray-600">{{ gameState.puzzle?.description || 'Please wait...' }}</p>
                 </div>
             </div>
 
-              <!-- AI Assistant Response -->
               <div v-if="textBubble" class="flex items-start w-full gap-4">
                 <img :src="defaultAvatar" class="w-10 h-10 rounded-full border-2 border-blue-500 shadow" alt="AI Avatar" />
                 <div class="flex-1 p-4 rounded-lg bg-white text-gray-800 shadow relative">
@@ -72,7 +54,6 @@
               </div>
             </div>
 
-              <!-- Prompt Input -->
               <div class="flex flex-col gap-3">
                 <textarea
                   v-model="promptInput"
@@ -104,30 +85,12 @@
               </div>
             </div>
 
-              <!-- Code Editor -->
-              <div class="w-full h-[400px] rounded-lg overflow-hidden shadow bg-[#282c34]" ref="editorContainer"></div>
+              <div id="editor-container" class="w-full h-[400px] rounded-lg overflow-hidden shadow bg-[#282c34]" ref="editorContainer"></div>
           </div>
         </div>
-
-          <!-- Start Puzzle Button -->
-          <div v-else-if="showPuzzleButton" class="text-center mt-6">
-            <button
-              @click="loadPuzzle"
-              class="bg-blue-500 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-600 transition"
-            >
-              Start Puzzle
-            </button>
-            <button
-              @click="forfeitGame"
-              class="bg-red-500 text-white px-6 py-3 rounded-lg shadow hover:bg-red-600 transition ml-4"
-            >
-              Forfeit Game
-            </button>
-          </div>
         </div>
       </template>
 
-      <!-- Waiting State -->
       <div v-if="!inGame && !showGameResults" class="text-center mt-8">
         <p class="mb-4 text-gray-600">Waiting for a game to start...</p>
         <button
@@ -138,59 +101,6 @@
         </button>
       </div>
 
-      <!-- Waiting for Opponent Screen -->
-      <div v-if="showWaitingForOpponent" class="fixed inset-0 flex items-center justify-center z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
-        <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md text-center">
-          <div class="flex justify-center mb-6">
-            <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <h3 class="text-2xl font-bold mb-4">Puzzle Complete!</h3>
-          <p class="text-gray-600 mb-6">Waiting for your opponent to finish...</p>
-          <div class="bg-blue-50 p-4 rounded mb-6">
-            <p class="text-lg">Your score for this round: <span class="font-bold text-blue-600">{{ gameState?.playerStatus[currentPlayer?.id || '']?.score || 0 }}</span></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Round Complete Popup -->
-      <div v-if="showRoundComplete" class="fixed inset-0 flex items-center justify-center z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
-        <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md">
-          <h3 class="text-2xl font-bold mb-4 text-center">Round {{ gameState?.currentRound ? (gameState.currentRound - 1) : 1 }} Complete!</h3>
-          <p class="text-gray-600 text-center mb-6">Results for this round:</p>
-
-          <div class="flex justify-between items-center mb-6">
-            <div class="flex flex-col items-center">
-              <img :src="currentPlayer?.picture || defaultAvatar" class="w-16 h-16 rounded-full mb-2 border-2" :class="isWinningRound ? 'border-green-500' : 'border-blue-500'" alt="Your avatar" />
-              <p class="font-semibold">{{ currentPlayer?.username }}</p>
-              <p class="text-2xl font-bold" :class="isWinningRound ? 'text-green-600' : 'text-blue-600'">{{ gameState?.playerStatus[currentPlayer?.id || '']?.score || 0 }}</p>
-            </div>
-
-            <div class="flex flex-col items-center">
-              <div class="text-xl font-bold my-2">VS</div>
-              <div class="text-sm text-gray-500">Round {{ gameState?.currentRound ? (gameState.currentRound - 1) : 1 }}</div>
-            </div>
-
-            <div class="flex flex-col items-center">
-              <img :src="getOpponentAvatar()" class="w-16 h-16 rounded-full mb-2 border-2" :class="!isWinningRound ? 'border-green-500' : 'border-red-500'" alt="Opponent avatar" />
-              <p class="font-semibold">{{ getOpponentName() }}</p>
-              <p class="text-2xl font-bold" :class="!isWinningRound ? 'text-green-600' : 'text-red-600'">{{ getOpponentScore() }}</p>
-            </div>
-          </div>
-
-          <div class="flex justify-center">
-            <button
-              @click="startNextRound"
-              class="w-2/3 bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 shadow-md"
-            >
-              {{ isLastRound ? 'See Final Results' : 'Start Next Round' }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Game Results Modal -->
       <div v-if="showGameResults && gameResults" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50"></div>
         <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md">
@@ -229,7 +139,6 @@
         </div>
       </div>
 
-      <!-- Score Popup -->
       <div v-if="showScorePopup && scoreDetails" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-70"></div>
         <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
@@ -268,28 +177,15 @@
                 <span class="font-bold" :class="{'text-red-600': scoreDetails.tokenScore < 40}">{{ scoreDetails.tokenScore || 0 }}</span>
                 <span class="text-gray-500 text-sm ml-1">/100</span>
               </div>
+              </div>
             </div>
-          </div>
 
-          <button
-            id="continueButton"
-            ref="continueButtonRef"
-            @click="closeScorePopup"
-            class="w-full mt-6 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
-            Continue
-          </button>
-
-          <!-- Alternative button as backup -->
-          <div class="text-center mt-2">
-            <a
-              href="#"
-              @click.prevent="closeScorePopupForce"
-              class="text-blue-500 hover:underline text-sm"
+            <button
+              @click="closeScorePopup"
+            class="w-full mt-6 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
             >
-              Having trouble? Click here instead
-            </a>
-          </div>
+              Continue
+            </button>
         </div>
       </div>
     </main>
@@ -297,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useGameStore } from '../stores/game';
@@ -313,34 +209,29 @@ import { closeBrackets } from "@codemirror/autocomplete";
 import { history } from "@codemirror/commands";
 import apiClient from '../services/api';
 
-// Router and store setup
 const route = useRoute();
 const router = useRouter();
 const gameStore = useGameStore();
 
-// Store refs and methods
 const { gameState, currentPlayer, isConnected, lastError } = storeToRefs(gameStore);
-const { initializeGame, markPuzzleCompleted, isPlayerTurn, cleanup } = gameStore;
+const { initializeGame, markPuzzleCompleted, isPlayerTurn, cleanup, startNextRound } = gameStore;
 
-// Component state
 const defaultAvatar = '/default-avatar.png';
 const editorContainer = ref<HTMLElement | null>(null);
 const editor = ref<EditorView | null>(null);
 const code = ref('');
 const textBubble = ref("What would you like to do first?");
 const isSubmitting = ref(false);
-const showPuzzleButton = ref(true);
+const showPuzzleButton = ref(false);
 const inGame = ref(false);
 const timeRemaining = ref(300);
 const gameNotification = ref('');
 const showGameResults = ref(false);
 const showScorePopup = ref(false);
-const showWaitingForOpponent = ref(false);
-const showRoundComplete = ref(false);
 const promptInput = ref('');
 const isPrompting = ref(false);
+const updateCodeTimeout = ref<number | null>(null);
 
-// Game state
 const gameResults = ref<{
   result: 'WIN' | 'LOSS' | 'DRAW';
   yourScore: number;
@@ -357,13 +248,8 @@ const scoreDetails = ref<{
   hasFailed: boolean;
 } | null>(null);
 
-// Timer
 let timerInterval: number | undefined;
 
-// Component refs
-const continueButtonRef = ref<HTMLButtonElement | null>(null);
-
-// Computed
 const getOpponentName = () => {
   if (!gameState.value || !currentPlayer.value) return '';
   const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
@@ -382,51 +268,6 @@ const getOpponentAvatar = () => {
   return opponent?.picture || defaultAvatar;
 };
 
-const getOpponentHasCompleted = () => {
-  if (!gameState.value || !currentPlayer.value) return false;
-  const opponent = gameState.value.players.find(p => p.id !== currentPlayer.value?.id);
-  return opponent ? gameState.value.playerStatus[opponent.id]?.hasCompleted || false : false;
-};
-
-const isWinningRound = computed(() => {
-  if (!gameState.value || !currentPlayer.value) return false;
-  const yourScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
-  const opponentScore = getOpponentScore();
-  return yourScore > opponentScore;
-});
-
-const isLastRound = computed(() => {
-  if (!gameState.value) return false;
-  return gameState.value.currentRound >= gameState.value.totalRounds;
-});
-
-const startNextRound = () => {
-  showRoundComplete.value = false;
-  showWaitingForOpponent.value = false;
-
-  // If this was the last round, show final results
-  if (isLastRound.value) {
-    // Calculate final results
-    if (gameState.value && currentPlayer.value) {
-      const yourTotalScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
-      const opponentTotalScore = getOpponentScore();
-
-      gameResults.value = {
-        result: yourTotalScore > opponentTotalScore ? 'WIN' : yourTotalScore < opponentTotalScore ? 'LOSS' : 'DRAW',
-        yourScore: yourTotalScore,
-        opponentScore: opponentTotalScore,
-        eloChange: yourTotalScore > opponentTotalScore ? 15 : yourTotalScore < opponentTotalScore ? -10 : 0
-      };
-
-      showGameResults.value = true;
-    }
-  } else {
-    // Reset UI for next round
-    showPuzzleButton.value = true;
-  }
-};
-
-// Methods
 const startTimer = () => {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = window.setInterval(() => {
@@ -451,203 +292,185 @@ const handleTimeout = () => {
 };
 
 const handleSubmit = async () => {
-  console.log('Submit button clicked');
-  console.log('Is submitting:', isSubmitting.value);
-  console.log('Editor exists:', !!editor.value);
-  console.log('Game state exists:', !!gameState.value);
-  console.log('Current player exists:', !!currentPlayer.value);
-  console.log('Code length:', code.value.length);
-  console.log('Is connected:', gameStore.isConnected);
-
-  if (isSubmitting.value || !gameState.value?.puzzle || !currentPlayer.value) {
-    console.log('Cannot submit solution - missing game state or player');
-    return;
-  }
-
-  // Check connection status
-  if (!gameStore.isConnected) {
-    console.log('Not connected to game server - attempting to reconnect');
-    textBubble.value = 'Connection to game server lost. Reconnecting...';
-    gameStore.attemptReconnect(gameState.value.id, currentPlayer.value);
-
-    // Add a delay to allow reconnection
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Check again
-    if (!gameStore.isConnected) {
-      textBubble.value = 'Failed to connect to game server. Please try again.';
-      return;
-    }
-  }
-
-  // Don't require editor to exist, just use the code.value
-  console.log('Submitting solution with code length:', code.value.length);
+  if (isSubmitting.value || !editor.value || !gameState.value?.puzzle || !currentPlayer.value) return;
   isSubmitting.value = true;
 
   try {
-    // Store current score before submission to detect changes
-    if (gameState.value && currentPlayer.value) {
-      const currentScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
-      console.log('Current score before submission:', currentScore);
+    textBubble.value = 'Submitting solution...';
 
-      // Submit the solution
-      await gameStore.submitSolution(code.value);
-      console.log('Solution submitted successfully to server');
+    // Store solution locally to ensure we keep it even if connection drops
+    const solutionCode = code.value;
+
+    // Show explicit notification about submission
+    gameNotification.value = 'Submitting solution, please wait...';
+
+    // Check if connection is available
+    if (!gameStore.isConnected) {
+      console.log('Connection not available, attempting reconnection...');
+      textBubble.value = 'Reconnecting to server...';
+      gameNotification.value = 'Reconnecting to server before submission...';
+
+      // Try explicit reconnection with our new method
+      const reconnected = await gameStore.reconnectToGame();
+
+      if (!reconnected) {
+        throw new Error('Failed to reconnect to server');
+      }
+
+      console.log('Connection restored, proceeding with submission');
+      textBubble.value = 'Connection restored, submitting solution...';
+    }
+
+    try {
+      // Submit solution with a timeout in case it hangs
+      const submitPromise = gameStore.submitSolution(solutionCode);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Submission timeout')), 10000)
+      );
+
+      await Promise.race([submitPromise, timeoutPromise]);
       textBubble.value = 'Solution submitted for evaluation!';
+      gameNotification.value = 'Solution submitted, waiting for results...';
 
-      // Also mark as completed to ensure state is updated
-      console.log('Marking puzzle as completed after submission');
-      markPuzzleCompletedWithRetry();
+      // Start a timeout for showing score popup if it doesn't show automatically
+      setTimeout(async () => {
+        if (isSubmitting.value) {
+          console.log('Solution submitted but no score received yet, checking status...');
 
-      // Wait for a moment to let the score update come through
-      setTimeout(() => {
-        // If score hasn't changed after timeout, check if we need to display results
-        if (gameState.value && currentPlayer.value) {
-          const newScore = gameState.value.playerStatus[currentPlayer.value.id]?.score || 0;
-          console.log('Score after submission:', newScore);
+          // Try to reconnect if the connection was lost
+          if (!gameStore.isConnected) {
+            console.log('Connection lost after submission, attempting to reconnect...');
+            await gameStore.reconnectToGame();
+          }
 
-          if (newScore === currentScore) {
-            console.log('Score didn\'t change, may need to resubmit or check status');
+          const playerStatus = gameState.value?.playerStatus[currentPlayer.value?.id || ''];
+
+          if (playerStatus && playerStatus.score > 0) {
+            console.log('Score found in playerStatus:', playerStatus.score);
+            isSubmitting.value = false;
+
+            // Show score popup
+            const scoreData = {
+              score: playerStatus.score,
+              timeBonus: Math.max(20, 100 - Math.floor((300 - timeRemaining.value) / 3)),
+              qualityScore: 85,
+              correctnessScore: 90
+            };
+
+            handleScoreUpdate(scoreData);
           } else {
-            // Score changed, trigger automatic completion
-            console.log('Score changed, marking puzzle as completed');
-            markPuzzleCompletedWithRetry();
+            // Try to submit the solution again as a fallback
+            console.log('No score found after timeout, trying alternative submission...');
+            textBubble.value = 'Trying alternative submission method...';
+
+            try {
+              // Check if fallback API is enabled
+              const useFallbackApi = import.meta.env.VITE_USE_FALLBACK_API === 'true';
+
+              if (useFallbackApi) {
+                // Fallback to REST API call
+                const response = await apiClient.post(`/api/game/${gameState.value?.id}/submit`, {
+                  playerId: currentPlayer.value?.id,
+                  code: solutionCode
+                });
+
+                console.log('Solution submitted via fallback API:', response.data);
+                gameNotification.value = '';
+                textBubble.value = 'Solution submitted via fallback method!';
+
+                // If we get a score in the response, show it
+                if (response.data && response.data.score) {
+                  const scoreData = {
+                    score: response.data.score,
+                    timeBonus: response.data.timeBonus || 80,
+                    qualityScore: response.data.qualityScore || 85,
+                    correctnessScore: response.data.correctnessScore || 90
+                  };
+
+                  handleScoreUpdate(scoreData);
+                }
+              } else {
+                console.log('Fallback API disabled, skipping REST API call');
+                textBubble.value = 'Waiting for score update...';
+              }
+            } catch (apiError) {
+              console.error('Fallback API submission also failed:', apiError);
+              gameNotification.value = 'Having trouble submitting your solution. Please try again.';
+              isSubmitting.value = false;
+            }
           }
         }
-      }, 2000);
+      }, 5000);
+
+      // Log submission
+      console.log('Solution submitted successfully, waiting for score update');
+    } catch (error: any) {
+      console.error('Error during solution submission:', error);
+
+      // If we get a timeout or connection error, try a direct API call as backup
+      if (error.message && (error.message.includes('timeout') || error.message.includes('connection'))) {
+        textBubble.value = 'WebSocket timeout, trying alternative submission...';
+        gameNotification.value = 'WebSocket timeout, trying alternative submission...';
+
+        try {
+          // Check if fallback API is enabled
+          const useFallbackApi = import.meta.env.VITE_USE_FALLBACK_API === 'true';
+
+          if (useFallbackApi) {
+            // Fallback to REST API call
+            const response = await apiClient.post(`/api/game/${gameState.value.id}/submit`, {
+              playerId: currentPlayer.value?.id,
+              code: solutionCode
+            });
+
+            console.log('Solution submitted via fallback API:', response.data);
+            gameNotification.value = '';
+            textBubble.value = 'Solution submitted via fallback method!';
+
+            // If we get a score in the response, show it
+            if (response.data && response.data.score) {
+              const scoreData = {
+                score: response.data.score,
+                timeBonus: response.data.timeBonus || 80,
+                qualityScore: response.data.qualityScore || 85,
+                correctnessScore: response.data.correctnessScore || 90
+              };
+
+              handleScoreUpdate(scoreData);
+            }
+          } else {
+            console.log('Fallback API disabled, skipping REST API call');
+            textBubble.value = 'Waiting for score update from WebSocket...';
+          }
+        } catch (apiError) {
+          console.error('Fallback API submission also failed:', apiError);
+          gameNotification.value = 'Having trouble submitting your solution. Please try again.';
+          isSubmitting.value = false;
+          throw new Error('Failed to submit solution through all available methods');
+        }
+      } else {
+        throw error;
+      }
     }
   } catch (error) {
     console.error('Error submitting solution:', error);
     textBubble.value = 'Failed to submit solution. Please try again.';
-  } finally {
+    gameNotification.value = 'Failed to submit solution. Please try again.';
     isSubmitting.value = false;
   }
 };
 
 const handleComplete = () => {
-  if (!gameState.value || !currentPlayer.value) return;
-
-  console.log('✅ COMPLETE: Marking puzzle completed for player:', currentPlayer.value.id);
-
-  // Only mark the player's own puzzle as completed
-  markPuzzleCompletedWithRetry();
-
-  // First show the score popup with individual score details
-  // Create score details to show in the popup
-  scoreDetails.value = {
-    totalScore: gameState.value.playerStatus[currentPlayer.value.id]?.score || 0,
-    timeScore: 85, // These could be real metrics from the server
-    efficiencyScore: 90,
-    tokenScore: 75,
-    timeSeconds: 300 - timeRemaining.value,
-    hasFailed: false
-  };
-
-  console.log('✅ COMPLETE: Showing score popup with details:', scoreDetails.value);
-
-  // Show the score popup first
-  showScorePopup.value = true;
-
-  // After closing the score popup, show either waiting screen or round complete
-  // The closeScorePopup method will handle this transition
-};
-
-// Add a retry mechanism to ensure completion gets registered
-const markPuzzleCompletedWithRetry = () => {
-  console.log('🔄 MARKING COMPLETE: Calling markPuzzleCompleted with retry');
-
-  // First call
   markPuzzleCompleted();
-
-  // Add backup call with delay in case first one fails
-  setTimeout(() => {
-    console.log('🔄 MARKING COMPLETE: Backup call to markPuzzleCompleted');
-    markPuzzleCompleted();
-
-    // Force a manual check for opponent completion after a delay
-    setTimeout(() => {
-      if (gameState.value && currentPlayer.value) {
-        console.log('🔄 MARKING COMPLETE: Checking player completed status');
-        const playerId = currentPlayer.value.id;
-        const isCompleted = gameState.value.playerStatus[playerId]?.hasCompleted;
-        console.log('Player completed status:', isCompleted);
-
-        // If still not marked as completed, force a state update
-        if (!isCompleted) {
-          console.log('⚠️ Player not marked as completed, forcing state update');
-          markPuzzleCompleted();
-        }
-      }
-    }, 2000);
-  }, 1000);
 };
 
 const loadPuzzle = () => {
-  console.log('loadPuzzle called');
-  console.log('Editor container exists:', !!editorContainer.value);
-  console.log('Current code length:', code.value.length);
-
+  console.log('📝 LOAD PUZZLE: Called with current code length:', code.value?.length || 0);
   showPuzzleButton.value = false;
   startTimer();
 
-  // Try to initialize the editor with a retry mechanism if container not available yet
-  const initEditor = () => {
-    console.log('initEditor called, checking container');
-
-    if (!editor.value) {
-      if (editorContainer.value) {
-        console.log('Creating editor instance now');
-
-        try {
-          editor.value = new EditorView({
-            state: EditorState.create({
-              doc: code.value,
-              extensions: [
-                lineNumbers(),
-                highlightActiveLineGutter(),
-                highlightSpecialChars(),
-                history(),
-                bracketMatching(),
-                closeBrackets(),
-                javascript(),
-                syntaxHighlighting(defaultHighlightStyle),
-                keymap.of(defaultKeymap),
-                EditorView.lineWrapping,
-                EditorView.updateListener.of((v) => {
-                  if (v.docChanged) {
-                    code.value = v.state.doc.toString();
-                    if (gameState.value && currentPlayer.value) {
-                      gameStore.updateCurrentCode(currentPlayer.value.id, code.value);
-                    }
-                  }
-                })
-              ],
-            }),
-            parent: editorContainer.value
-          });
-
-          console.log('Editor created successfully:', !!editor.value);
-
-          // Force refresh the editor after creation to ensure styling is applied
-          setTimeout(() => {
-            if (editor.value) {
-              console.log('Refreshing editor with dispatch');
-              editor.value.dispatch({});
-            }
-          }, 100);
-        } catch (error) {
-          console.error('Error creating editor:', error);
-        }
-      } else {
-        console.log('Container not available yet, retrying in 100ms');
-        setTimeout(initEditor, 100);
-        return;
-      }
-    }
-  };
-
-  // Start the editor initialization process
-  initEditor();
+  // Try to initialize editor if not already done
+  initEditorWithRetries(true);
 };
 
 const forfeitGame = async () => {
@@ -668,63 +491,78 @@ const returnToLobby = () => {
   router.push('/vs');
 };
 
-const closeScorePopup = () => {
-  console.log('✅ CLOSE POPUP: Closing score popup');
+const closeScorePopup = async () => {
+  console.log('🎯 SCORE POPUP: Closing score popup');
   showScorePopup.value = false;
 
-  // Only show transition screens if we're the current player with a completed puzzle
-  if (!gameState.value || !currentPlayer.value) {
-    console.log('❌ CLOSE POPUP ERROR: Missing game state or current player');
-    return;
-  }
+  // After closing, mark the puzzle as completed
+  console.log('🎯 SCORE POPUP: Marking puzzle as completed');
+  await markPuzzleCompleted();
 
-  const playerId = currentPlayer.value.id;
-  const playerStatus = gameState.value.playerStatus[playerId];
+  // Check if we need to advance to next round
+  if (gameState.value && currentPlayer.value) {
+    const currentRound = gameState.value.currentRound;
+    const totalRounds = gameState.value.totalRounds;
 
-  console.log('✅ CLOSE POPUP: Player status for', playerId, ':', JSON.stringify(playerStatus));
+    if (currentRound < totalRounds) {
+      // After a delay to ensure completion is processed, start next round
+      setTimeout(async () => {
+        console.log('🎯 SCORE POPUP: Attempting to start next round...');
+        try {
+          // Reset UI for new round
+          timeRemaining.value = 300;
+          textBubble.value = "What would you like to do for this round?";
+          code.value = '';
 
-  try {
-    // Only proceed to waiting/round complete if this player has completed their puzzle
-    if (playerStatus?.hasCompleted) {
-      console.log('✅ CLOSE POPUP: Player has completed puzzle, checking opponent status');
+          // Clear the editor
+          if (editor.value) {
+            editor.value.dispatch({
+              changes: { from: 0, to: editor.value.state.doc.length, insert: '' }
+            });
+          }
 
-      // After showing individual score, either wait for opponent or show round results
-      if (getOpponentHasCompleted()) {
-        console.log('✅ CLOSE POPUP: Opponent already completed, showing round results');
-        showRoundComplete.value = true;
-      } else {
-        console.log('✅ CLOSE POPUP: Waiting for opponent to complete');
-        showWaitingForOpponent.value = true;
-      }
+          // Make sure any existing timer is cleared before starting a new one
+          if (timerInterval) {
+            console.log('🎯 SCORE POPUP: Clearing existing timer before starting a new round');
+            clearInterval(timerInterval);
+            timerInterval = undefined;
+          }
+
+          // Request next round from server
+          await startNextRound();
+          console.log('🎯 SCORE POPUP: Next round request successful');
+
+          gameNotification.value = `Round ${currentRound} completed! Starting round ${currentRound + 1}...`;
+          setTimeout(() => {
+            if (gameNotification.value.includes(`Round ${currentRound} completed`)) {
+              gameNotification.value = '';
+            }
+          }, 5000);
+
+          // Wait a moment for the round change to propagate before starting the timer
+          setTimeout(() => {
+            // Start timer for the new round
+            console.log('🎯 SCORE POPUP: Starting timer for new round after delay');
+            startTimer();
+          }, 500);
+        } catch (error) {
+          console.error('🎯 SCORE POPUP: Error starting next round:', error);
+          gameNotification.value = 'Failed to start next round. Try refreshing the page.';
+        }
+      }, 1000);
     } else {
-      console.log('✅ CLOSE POPUP: Player puzzle not marked as completed yet');
-
-      // Force update player status by calling markPuzzleCompleted again
-      console.log('⚠️ CLOSE POPUP: Forcing puzzle completion and transitioning to waiting screen');
-      markPuzzleCompleted();
-
-      // Force transition to waiting screen anyway
-      showWaitingForOpponent.value = true;
+      console.log('🎯 SCORE POPUP: Final round completed');
     }
-  } catch (error) {
-    console.error('❌ CLOSE POPUP ERROR:', error);
-
-    // Fallback: just show the waiting screen
-    console.log('⚠️ CLOSE POPUP: Using fallback transition to waiting screen');
-    showWaitingForOpponent.value = true;
   }
 };
 
-// Handle prompt submission
 const handlePrompt = async () => {
   if (isPrompting.value || !gameState.value?.puzzle || !currentPlayer.value) return;
   isPrompting.value = true;
 
   try {
-    // First, send the prompt through WebSocket to notify other players
     await gameStore.submitPrompt(promptInput.value);
 
-    // Then, get the AI response directly (like in MultiStepSolve)
     const response = await apiClient.post('/ai/solve', {
       puzzleId: gameState.value.puzzle.id,
       userId: currentPlayer.value.id,
@@ -732,13 +570,10 @@ const handlePrompt = async () => {
       code: code.value
     });
 
-    // Update text bubble with AI response
     textBubble.value = response.data.text;
 
-    // Update editor with new code
     let newCode = null;
 
-    // Try to extract code from various possible response formats
     if (response.data.code) {
       console.log('Found code in response.data.code');
       newCode = typeof response.data.code === 'string'
@@ -746,47 +581,37 @@ const handlePrompt = async () => {
         : (response.data.code.code || null);
     }
 
-    // Check for completeCode property like in MultiStepSolve
     if (!newCode && response.data.completeCode) {
       console.log('Using completeCode property');
       newCode = response.data.completeCode;
     }
 
-    if (newCode) {
-      console.log('Found valid code in response, length:', newCode.length);
-      code.value = newCode; // Always update the code ref
+    if (editor.value && newCode) {
+      console.log('Updating editor with new code, length:', newCode.length);
+      console.log('First 50 chars:', newCode.substring(0, 50));
 
-      // If editor exists, update it
-      if (editor.value) {
-        console.log('Updating editor with new code');
-        try {
-          // Small delay to ensure editor is ready
-          setTimeout(() => {
-            if (editor.value) {
-              editor.value.dispatch({
-                changes: { from: 0, to: editor.value.state.doc.length, insert: newCode }
-              });
-              console.log('Editor updated successfully');
+      try {
+        setTimeout(() => {
+          if (editor.value) {
+            editor.value.dispatch({
+              changes: { from: 0, to: editor.value.state.doc.length, insert: newCode }
+            });
+            code.value = newCode;
+
+            if (currentPlayer.value) {
+              gameStore.updateCurrentCode(currentPlayer.value.id, newCode);
+              console.log('Code updated in game state');
             }
-          }, 50);
-        } catch (error) {
-          console.error('Error updating editor:', error);
-        }
-      } else {
-        console.log('Editor not initialized yet, code.value has been updated');
-      }
-
-      // Update the game state with new code through WebSocket
-      if (currentPlayer.value) {
-        gameStore.updateCurrentCode(currentPlayer.value.id, newCode);
-        console.log('Code updated in game state');
+          }
+        }, 50);
+      } catch (error) {
+        console.error('Error updating editor:', error);
       }
     } else {
-      console.log('No valid code found in the response');
+      console.log('Not updating editor. Editor exists:', !!editor.value, 'Code exists:', !!newCode);
       console.log('Response structure:', JSON.stringify(response.data).substring(0, 200) + '...');
     }
 
-    // Clear prompt input
     promptInput.value = '';
 
   } catch (error) {
@@ -797,7 +622,6 @@ const handlePrompt = async () => {
   }
 };
 
-// Watch for game state changes to update code
 watch(() => gameState.value?.currentTurn, (newTurn) => {
   if (gameState.value && editor.value && newTurn) {
     const playerStatus = gameState.value.playerStatus[newTurn];
@@ -811,175 +635,219 @@ watch(() => gameState.value?.currentTurn, (newTurn) => {
   }
 });
 
-// Watch for player status changes to detect puzzle completion and opponent completion
-watch(() => gameState.value?.playerStatus, (newStatus, oldStatus) => {
-  // Ensure both gameState and currentPlayer exist
-  if (!gameState.value || !currentPlayer.value || !newStatus) return;
-
-  const playerId = currentPlayer.value.id;
-  const playerStatus = newStatus[playerId];
-  const oldPlayerStatus = oldStatus?.[playerId];
-
-  console.log('📊 STATUS WATCH: Player status changed for:', playerId);
-
-  // IMPORTANT: We're removing auto-popup on score change since that could be
-  // detecting other players' score updates that were broadcast via game state
-  // The score popup should ONLY come from direct messages now
-
-  // Check if our own puzzle was just completed (by us)
-  if (playerStatus?.hasCompleted && !oldPlayerStatus?.hasCompleted) {
-    console.log('📊 STATUS WATCH: Puzzle completion detected for current player:', playerId);
-    // Handle our own completion
-    handleComplete();
-  }
-
-  // Check if we're waiting and opponent just completed
-  if (showWaitingForOpponent.value && getOpponentHasCompleted()) {
-    console.log('📊 STATUS WATCH: Opponent completed puzzle while we were waiting');
-    showWaitingForOpponent.value = false;
-    showRoundComplete.value = true;
-  }
-
-  // If all players completed and game is advancing to next round
-  const allCompleted = Object.values(newStatus).every(status => status.hasCompleted);
-  if (allCompleted) {
-    console.log('📊 STATUS WATCH: All players completed, showing round complete');
-    showWaitingForOpponent.value = false;
-
-    // If not showing round complete already, show it
-    if (!showRoundComplete.value) {
-      showRoundComplete.value = true;
-    }
-  }
-}, { deep: true });
-
-// Watch for AI responses from WebSocket (backup sync mechanism)
 watch(() => gameStore.aiResponse, (newResponse) => {
   console.log('AI Response watcher triggered, received:', newResponse);
 
   if (newResponse) {
-    // Only update text if we don't already have a response
     if (newResponse.text && textBubble.value === "What would you like to do first?") {
       console.log('Updating text bubble with:', newResponse.text);
       textBubble.value = newResponse.text;
     }
 
-    // Extract code from response
-    let codeToUpdate = null;
+    if (editor.value) {
+      let codeToUpdate = null;
 
-    if (typeof newResponse.code === 'string' && newResponse.code.trim().length > 0) {
-      console.log('Found code as string in response');
-      codeToUpdate = newResponse.code;
-    } else if (newResponse.code && typeof newResponse.code === 'object') {
-      // Handle case where code might be an object property
-      console.log('Response code is an object, trying to extract code property');
-      if (newResponse.code.code && typeof newResponse.code.code === 'string') {
-        codeToUpdate = newResponse.code.code;
+      if (typeof newResponse.code === 'string' && newResponse.code.trim().length > 0) {
+        console.log('Found code as string in response');
+        codeToUpdate = newResponse.code;
+      } else if (newResponse.code && typeof newResponse.code === 'object') {
+        console.log('Response code is an object, trying to extract code property');
+        if (newResponse.code.code && typeof newResponse.code.code === 'string') {
+          codeToUpdate = newResponse.code.code;
+        }
       }
-    }
 
-    // If we still don't have code, check for a completeCode property
-    if (!codeToUpdate && newResponse.completeCode) {
-      console.log('Using completeCode property');
-      codeToUpdate = newResponse.completeCode;
-    }
-
-    // Update the editor with the new code
-    if (codeToUpdate && editor.value) {
-      console.log('Updating editor with code, length:', codeToUpdate.length);
-      console.log('First 50 chars of code:', codeToUpdate.substring(0, 50));
-
-      try {
-        // Small delay to ensure editor is ready
-        setTimeout(() => {
-          if (editor.value) {
-            editor.value.dispatch({
-              changes: { from: 0, to: editor.value.state.doc.length, insert: codeToUpdate }
-            });
-            code.value = codeToUpdate;
-            console.log('Editor updated successfully');
-          }
-        }, 50);
-      } catch (error) {
-        console.error('Error updating editor:', error);
+      if (!codeToUpdate && newResponse.completeCode) {
+        console.log('Using completeCode property');
+        codeToUpdate = newResponse.completeCode;
       }
-    } else if (codeToUpdate) {
-      // Store code in code.value even if editor isn't ready
-      console.log('Editor not initialized yet, storing in code.value');
-      console.log('Stored code length:', codeToUpdate.length);
-      code.value = codeToUpdate;
+
+      if (codeToUpdate) {
+        console.log('Updating editor with code, length:', codeToUpdate.length);
+        console.log('Editor before update - doc length:', editor.value.state.doc.length);
+        console.log('First 50 chars of code:', codeToUpdate.substring(0, 50));
+
+        try {
+          setTimeout(() => {
+            if (editor.value) {
+              editor.value.dispatch({
+                changes: { from: 0, to: editor.value.state.doc.length, insert: codeToUpdate }
+              });
+              code.value = codeToUpdate;
+              console.log('Editor updated successfully');
+            }
+          }, 50);
+        } catch (err) {
+          console.error('Error updating editor:', err);
+        }
+      } else {
+        console.log('No valid code found in the response to update the editor');
+        console.log('Response structure:', JSON.stringify(newResponse).substring(0, 200) + '...');
+      }
     } else {
-      console.log('No valid code found in the response');
+      console.log('Editor not initialized yet');
     }
   }
 }, { immediate: true });
 
-// Watch for game state changes to detect new rounds
-watch(() => gameState.value?.currentRound, (newRound, oldRound) => {
-  if (newRound && oldRound && newRound > oldRound) {
-    console.log('New round detected:', newRound);
+const initEditorWithRetries = (forceInit = false) => {
+  let retryCount = 0;
+  const maxRetries = 10;
+  const initialDelay = 200;
+  let delay = initialDelay;
+  let editorInitialized = false;
 
-    // Reset UI for the new round
-    showRoundComplete.value = false;
-    showWaitingForOpponent.value = false;
-    showPuzzleButton.value = true;
-    timeRemaining.value = 300;
+  console.log('📝 EDITOR: Starting initialization with up to', maxRetries, 'retries');
 
-    // Reset code and text bubble
-    code.value = '';
-    textBubble.value = "What would you like to do for this round?";
+  const tryInit = () => {
+    retryCount++;
+    console.log('📝 EDITOR: Attempt', retryCount, 'to initialize editor');
 
-    // If editor exists, clear it
-    if (editor.value) {
-      editor.value.dispatch({
-        changes: { from: 0, to: editor.value.state.doc.length, insert: '' }
-      });
+    // First check if editor already exists
+    if (editor.value && !forceInit) {
+      console.log('📝 EDITOR: Editor already exists, skipping initialization');
+      editorInitialized = true;
+      return;
     }
-  }
-});
 
-// Add a method to directly handle score updates
-const handleScoreUpdate = (scoreData: any) => {
-  console.log('🏆 SCORE HANDLER: Handling direct score update:', scoreData);
+    if (!editorContainer.value) {
+      console.log('📝 EDITOR: Container ref not available yet, using querySelector');
+
+      // Try using querySelector as a fallback
+      const containerElement = document.getElementById('editor-container');
+      if (containerElement) {
+        console.log('📝 EDITOR: Found container using getElementById');
+        editorContainer.value = containerElement as HTMLElement;
+      } else {
+        console.log('📝 EDITOR: Container not found via querySelector either');
+
+        if (retryCount < maxRetries) {
+          delay = Math.min(delay * 1.5, 2000);
+          console.log('📝 EDITOR: Will retry in', delay, 'ms');
+          setTimeout(tryInit, delay);
+        } else {
+          console.error('📝 EDITOR ERROR: Failed to find editor container after', maxRetries, 'attempts');
+        }
+        return;
+      }
+    }
+
+    try {
+      console.log('📝 EDITOR: Creating editor instance using container ref');
+
+      if (editor.value) {
+        try {
+          console.log('📝 EDITOR: Destroying previous editor instance');
+          editor.value.destroy();
+        } catch (err) {
+          console.warn('📝 EDITOR: Error cleaning up previous editor:', err);
+        }
+      }
+
+      const extensions = [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightSpecialChars(),
+        history(),
+        bracketMatching(),
+        closeBrackets(),
+        javascript(),
+        syntaxHighlighting(defaultHighlightStyle),
+        keymap.of(defaultKeymap),
+        EditorView.lineWrapping,
+        EditorView.updateListener.of((v) => {
+          if (v.docChanged) {
+            code.value = v.state.doc.toString();
+            if (gameState.value && currentPlayer.value) {
+              gameStore.updateCurrentCode(currentPlayer.value.id, code.value);
+            }
+          }
+        })
+      ];
+
+      const currentCode = code.value || '';
+
+      editor.value = new EditorView({
+        state: EditorState.create({
+          doc: currentCode,
+          extensions,
+        }),
+        parent: editorContainer.value
+      });
+
+      console.log('📝 EDITOR: Editor created successfully');
+      editorInitialized = true;
+
+      if (gameState.value?.puzzle?.starterCode && code.value === '') {
+        console.log('📝 EDITOR: Setting starter code');
+        const starterCode = gameState.value.puzzle.starterCode || '';
+        code.value = starterCode;
+
+        editor.value.dispatch({
+          changes: { from: 0, to: editor.value.state.doc.length, insert: starterCode }
+        });
+      }
+    } catch (err) {
+      console.error('📝 EDITOR: Error creating editor:', err);
+      if (retryCount < maxRetries) {
+        delay = Math.min(delay * 1.5, 2000);
+        console.log('📝 EDITOR: Will retry after error in', delay, 'ms');
+        setTimeout(tryInit, delay);
+      } else {
+        console.error('📝 EDITOR ERROR: Failed to initialize editor after', maxRetries, 'attempts');
+        textBubble.value = "Failed to initialize code editor. Please refresh the page.";
+      }
+    }
+  };
+
+  tryInit();
+
+  return {
+    isInitialized: () => editorInitialized
+  };
+};
+
+// Add score popup handling function
+const handleScoreUpdate = (scoreData: {
+  score: number;
+  timeBonus?: number;
+  qualityScore?: number;
+  correctnessScore?: number;
+}) => {
+  console.log('🎯 SCORE UPDATE: Received score update:', scoreData);
+
+  // Skip score popup for zero scores
+  if (scoreData.score === 0) {
+    console.log('🎯 SCORE UPDATE: Skipping score popup for zero score');
+    return;
+  }
 
   // Create score details to show in the popup
   scoreDetails.value = {
-    totalScore: scoreData.score || 0,
+    totalScore: scoreData.score,
     timeScore: scoreData.timeBonus || 85,
-    efficiencyScore: scoreData.qualityScore || 90,
-    tokenScore: scoreData.correctnessScore || 75,
+    efficiencyScore: scoreData.qualityScore || 80,
+    tokenScore: scoreData.correctnessScore || 70,
     timeSeconds: 300 - timeRemaining.value,
     hasFailed: false
   };
 
-  // Show the score popup immediately
-  console.log('🏆 SCORE HANDLER: Showing score popup with details:', scoreDetails.value);
-  showScorePopup.value = true;
-};
+  console.log('🎯 SCORE UPDATE: Created score details:', scoreDetails.value);
 
-// Setup WebSocket message listener for score updates
-const unsubscribeAction = gameStore.$onAction(({ name, args }) => {
-  if (name === 'handleScoreUpdate') {
-    console.log('🎯 ACTION HOOK: Caught score update action:', args[0]);
-    handleScoreUpdate(args[0]);
-  }
-});
-
-// Add a forced close method as backup
-const closeScorePopupForce = () => {
-  console.log('⚡ FORCE CLOSE: Using force close method');
-  showScorePopup.value = false;
-
-  // Force waiting screen
+  // Show the score popup with small delay to ensure UI is ready
   setTimeout(() => {
-    showWaitingForOpponent.value = true;
-  }, 100);
+    showScorePopup.value = true;
+    console.log('🎯 SCORE UPDATE: Score popup displayed');
+  }, 300);
 };
 
-// Lifecycle
-onMounted(() => {
-  console.log('Game component mounted');
+// Create a ref to store the unsubscribe function
+const unsubscribeActionRef = ref<Function | null>(null);
 
+// Create a ref to store the interval IDs
+const intervalIds = ref<{[key: string]: number}>({});
+
+onMounted(() => {
   const gameId = route.params.gameId as string;
   const player: Player = {
     id: route.query.playerId as string,
@@ -993,34 +861,173 @@ onMounted(() => {
     return;
   }
 
-  console.log('Initializing game with ID:', gameId);
   initializeGame(gameId, player);
 
-  console.log('Game initialized, setting inGame to true');
-  inGame.value = true;
-
-  // Use nextTick to ensure DOM is updated before checking references
-  nextTick(() => {
-    console.log('nextTick - Editor container ref:', editorContainer.value);
+  // Register score update handler by subscribing to the store action
+  const unsubscribeAction = gameStore.$onAction(({ name, args }) => {
+    if (name === 'handleScoreUpdate') {
+      console.log('🎯 SCORE EVENT: Score update action detected:', args[0]);
+      handleScoreUpdate(args[0]);
+    }
   });
 
-  // Add a direct event listener to the continue button if needed
-  setTimeout(() => {
-    const continueButton = document.getElementById('continueButton');
-    if (continueButton) {
-      console.log('🔄 INIT: Adding direct event listener to continue button');
-      continueButton.addEventListener('click', () => {
-        console.log('⚡ DIRECT CLICK: Continue button clicked directly');
-        closeScorePopup();
-      });
+  // Store in a ref to be cleaned up in the onUnmounted hook
+  unsubscribeActionRef.value = unsubscribeAction;
+
+  // Initial editor setup attempt
+  initEditorWithRetries();
+
+  // Add a manual score check interval as a fallback
+  const scoreCheckInterval = window.setInterval(() => {
+    if (gameState.value && currentPlayer.value && !showScorePopup.value && isSubmitting.value) {
+      const playerStatus = gameState.value.playerStatus[currentPlayer.value.id];
+      if (playerStatus && playerStatus.score > 0) {
+        console.log('🔢 SCORE INTERVAL: Detected score in interval check:', playerStatus.score);
+        isSubmitting.value = false;
+
+        const scoreData = {
+          score: playerStatus.score,
+          timeBonus: Math.max(20, 100 - Math.floor((300 - timeRemaining.value) / 3)),
+          qualityScore: 85,
+          correctnessScore: 90
+        };
+
+        handleScoreUpdate(scoreData);
+      }
     }
-  }, 2000); // Wait for 2 seconds to make sure the component is fully mounted
+  }, 2000);
+
+  // Store interval ID in the ref object
+  intervalIds.value.scoreCheckInterval = scoreCheckInterval;
+
+  inGame.value = true;
+
+  // Auto-start puzzles after a brief delay when the game state is loaded
+  const startPuzzleInterval = window.setInterval(() => {
+    if (gameState.value && gameState.value.puzzle && !timerInterval) {
+      console.log('Auto-starting puzzle after game state loaded...');
+      clearInterval(intervalIds.value.startPuzzleInterval);
+      loadPuzzle();
+    }
+  }, 500);
+
+  // Store the interval for cleanup
+  intervalIds.value.startPuzzleInterval = startPuzzleInterval;
 });
 
 onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   if (editor.value) editor.value.destroy();
+
+  // Clean up action subscription
+  if (unsubscribeActionRef.value) {
+    unsubscribeActionRef.value();
+  }
+
+  // Clean up all intervals
+  Object.values(intervalIds.value).forEach(id => {
+    window.clearInterval(id);
+  });
+
   cleanup();
+});
+
+// Watch for score updates in gameState
+watch(() => gameState.value?.scores, (newScores, oldScores) => {
+  if (!newScores || !currentPlayer.value) return;
+
+  // Get current player's score
+  const playerScore = newScores[currentPlayer.value.id];
+  const prevScore = oldScores?.[currentPlayer.value.id] || 0;
+
+  console.log(`🔢 SCORE WATCHER: Checking scores - previous: ${prevScore}, new: ${playerScore}`);
+
+  // If the score has increased, show the popup
+  if (playerScore > prevScore && playerScore > 0) {
+    console.log(`🔢 SCORE WATCHER: Score increased from ${prevScore} to ${playerScore}`);
+
+    // Only show the popup if not already showing
+    if (!showScorePopup.value) {
+      const scoreData = {
+        score: playerScore,
+        timeBonus: Math.max(20, 100 - Math.floor((300 - timeRemaining.value) / 3)),
+        qualityScore: 85,
+        correctnessScore: 90
+      };
+
+      console.log('🔢 SCORE WATCHER: Triggering score update from watcher');
+      handleScoreUpdate(scoreData);
+    }
+  }
+}, { deep: true });
+
+// Also watch playerStatus to detect score changes there
+watch(() => gameState.value?.playerStatus, (newStatus, oldStatus) => {
+  if (!newStatus || !currentPlayer.value) return;
+
+  const playerStatus = newStatus[currentPlayer.value.id];
+  const oldPlayerStatus = oldStatus?.[currentPlayer.value.id];
+
+  if (playerStatus && (!oldPlayerStatus || playerStatus.score > oldPlayerStatus.score) && playerStatus.score > 0) {
+    const newScore = playerStatus.score;
+    const oldScore = oldPlayerStatus?.score || 0;
+
+    console.log(`🔢 PLAYER STATUS WATCHER: Score increased from ${oldScore} to ${newScore}`);
+
+    // Only show the popup if not already showing
+    if (!showScorePopup.value) {
+      const scoreData = {
+        score: newScore,
+        timeBonus: Math.max(20, 100 - Math.floor((300 - timeRemaining.value) / 3)),
+        qualityScore: 85,
+        correctnessScore: 90
+      };
+
+      console.log('🔢 PLAYER STATUS WATCHER: Triggering score update from status watcher');
+      handleScoreUpdate(scoreData);
+    }
+  }
+}, { deep: true });
+
+// Watch for round changes in gameState
+watch(() => gameState.value?.currentRound, (newRound, oldRound) => {
+  if (newRound && oldRound && newRound > oldRound) {
+    console.log(`🔄 ROUND CHANGE: Round changed from ${oldRound} to ${newRound}`);
+
+    // Reset UI for new round
+    showPuzzleButton.value = false; // Don't show the button, auto-start instead
+    timeRemaining.value = 300;
+    textBubble.value = "What would you like to do for this round?";
+    code.value = '';
+
+    // If editor is initialized, clear it
+    if (editor.value) {
+      editor.value.dispatch({
+        changes: { from: 0, to: editor.value.state.doc.length, insert: '' }
+      });
+    }
+
+    // Show notification about new round
+    gameNotification.value = `Round ${oldRound} completed! Starting round ${newRound}...`;
+    setTimeout(() => {
+      if (gameNotification.value.includes(`Round ${oldRound} completed`)) {
+        gameNotification.value = '';
+      }
+    }, 5000);
+
+    // Only start timer if it's not already running
+    if (!timerInterval) {
+      console.log('🔄 ROUND CHANGE: Starting timer for new round');
+      startTimer();
+    } else {
+      console.log('🔄 ROUND CHANGE: Timer already running, not restarting');
+    }
+
+    // Make sure editor is initialized for the new round
+    setTimeout(() => {
+      initEditorWithRetries(true);
+    }, 500);
+  }
 });
 </script>
 

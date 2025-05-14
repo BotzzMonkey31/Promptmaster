@@ -7,9 +7,13 @@ export interface Player {
 export interface Puzzle {
   id: string;
   name: string;
-  content: string;
   description: string;
-  completed: boolean;
+  type: string; // 'java', 'javascript', 'python', etc.
+  difficulty: string;
+  starterCode?: string; // Add optional starterCode property
+  testCases?: string[];
+  solutionSteps?: SolutionStep[];
+  categories?: string[];
 }
 
 export interface PlayerStatus {
@@ -26,6 +30,7 @@ export interface GameState {
   currentTurn: string;
   puzzle: Puzzle;
   playerStatus: Record<string, PlayerStatus>;
+  scores?: Record<string, number>;
 }
 
 export type WebSocketMessageType =
@@ -52,4 +57,10 @@ export interface WebSocketMessage {
 
 export interface GameError {
   message: string;
+}
+
+export interface SolutionStep {
+  title: string;
+  description: string;
+  code?: string;
 }

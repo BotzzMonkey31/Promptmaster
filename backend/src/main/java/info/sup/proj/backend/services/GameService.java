@@ -5,16 +5,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import info.sup.proj.backend.model.Game;
 import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.model.Puzzle;
-import info.sup.proj.backend.model.PlayerStatus;
-import info.sup.proj.backend.dto.GamePuzzleDTO;
 import info.sup.proj.backend.repositories.PuzzleRepository;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
-import java.util.ArrayList;
-import java.util.Random;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
 
 @Service
 public class GameService {
@@ -175,12 +172,12 @@ public class GameService {
         }
 
         game.markPlayerCompleted(playerId);
+        System.out.println("COMPLETE PUZZLE: Marked player " + playerId + " as completed");
+        System.out.println("COMPLETE PUZZLE: Current round: " + game.getCurrentRound());
+        System.out.println("COMPLETE PUZZLE: All players completed: " + game.allPlayersCompleted());
 
-        // If all players completed, advance to next round
-        if (game.allPlayersCompleted()) {
-            advanceToNextRound(game);
-        }
-
+        // We no longer automatically advance to next round
+        // Players must explicitly request it via the startNextRound method
         return game;
     }
 
@@ -194,25 +191,134 @@ public class GameService {
         return game;
     }
 
-    private Game findGameByPlayerId(String playerId) {
+    // Make this method public so it can be called from the controller
+    public Game findGameByPlayerId(String playerId) {
         return activeGames.values().stream()
             .filter(game -> game.hasPlayer(playerId))
             .findFirst()
             .orElse(null);
     }
 
-    private void advanceToNextRound(Game game) {
-        if (game.getCurrentRound() >= game.getTotalRounds()) {
-            game.endGame();
-            return;
-        }
+    // Add new method to list all active games
+    public List<Game> listAllGames() {
+        return new ArrayList<>(activeGames.values());
+    }
 
-        var puzzle = getRandomPuzzle();
-        if (puzzle == null) {
-            throw new IllegalStateException("No puzzles available");
+    // A map to track games that are currently in the process of advancing rounds
+    private final Map<String, Boolean> roundAdvancingMap = new ConcurrentHashMap<>();
+    
+    // A map to track which players have requested next round for a game
+    private final Map<String, Boolean> playerNextRoundRequestMap = new ConcurrentHashMap<>();
+    
+    /**
+     * Clean, simplified approach to round advancement that ensures each round is only advanced once.
+     */
+    public synchronized Game startNextRound(String gameId, String playerId) {
+        System.out.println("START NEXT ROUND: Request received for game " + gameId + " from player " + playerId);
+        
+        // Get the game from the active games map
+        Game game = activeGames.get(gameId);
+        if (game == null) {
+            System.out.println("START NEXT ROUND ERROR: Game not found: " + gameId);
+            throw new IllegalArgumentException("Game not found: " + gameId);
         }
+        
+        // Check if the player is part of this game
+        if (!game.hasPlayer(playerId)) {
+            System.out.println("START NEXT ROUND ERROR: Player " + playerId + " is not part of game " + gameId);
+            throw new IllegalArgumentException("Player is not part of this game");
+        }
+        
+        int currentRound = game.getCurrentRound();
+        int totalRounds = game.getTotalRounds();
+        System.out.println("START NEXT ROUND: Current round: " + currentRound + " of " + totalRounds);
+        
+        if (currentRound >= totalRounds) {
+            System.out.println("START NEXT ROUND: Already at final round, not advancing");
+            return game;
+        }
+        
+        // Generate a unique key for this game and round
+        String roundKey = gameId + ":" + currentRound;
+        
+        // Record this player's request
+        String playerRequestKey = roundKey + ":" + playerId;
+        playerNextRoundRequestMap.put(playerRequestKey, true);
+        System.out.println("START NEXT ROUND: Recorded request from player " + playerId + " for round " + currentRound);
+        
+        // Check if this round is already being advanced
+        if (Boolean.TRUE.equals(roundAdvancingMap.get(roundKey))) {
+            System.out.println("START NEXT ROUND: Round " + currentRound + " is already being advanced, ignoring duplicate request");
+            return game;
+        }
+        
+        // Mark this round as being advanced
+        roundAdvancingMap.put(roundKey, true);
+        System.out.println("START NEXT ROUND: Marked round " + currentRound + " as advancing");
+        
+        try {
+            // Ensure all players are marked as completed for this round
+            if (!game.allPlayersCompleted()) {
+                System.out.println("START NEXT ROUND: Not all players completed, forcing completion");
+                for (Player player : game.getPlayers()) {
+                    game.markPlayerCompleted(player.getId());
+                }
+            }
 
-        game.startNextRound(puzzle);
+            // Get the next puzzle
+            System.out.println("START NEXT ROUND: Getting puzzle for next round");
+            Puzzle nextPuzzle = getRandomPuzzle();
+            if (nextPuzzle == null) {
+                System.out.println("START NEXT ROUND ERROR: No puzzles available");
+                throw new IllegalStateException("No puzzles available");
+            }
+            
+            // Calculate the next round number explicitly 
+            int nextRound = currentRound + 1;
+            System.out.println("START NEXT ROUND: Advancing from round " + currentRound + " to " + nextRound);
+            
+            // Add a small delay to ensure any in-flight messages are processed
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.out.println("START NEXT ROUND: Interrupted during synchronization delay");
+            }
+            
+            // Double-check the current round hasn't changed during our processing
+            int verifiedCurrentRound = game.getCurrentRound();
+            if (verifiedCurrentRound != currentRound) {
+                System.out.println("START NEXT ROUND: Round changed during processing! Was " + currentRound + 
+                                  ", now " + verifiedCurrentRound + ". Adjusting next round calculation.");
+                nextRound = verifiedCurrentRound + 1;
+            }
+            
+            // Start the next round with an explicit round number to prevent any skipping
+            game.startNextRoundWithExplicitNumber(nextPuzzle, nextRound);
+            
+            // Verify the round was advanced correctly
+            System.out.println("START NEXT ROUND: Round advanced, new round is: " + game.getCurrentRound());
+            if (game.getCurrentRound() != nextRound) {
+                System.out.println("START NEXT ROUND ERROR: Round advancement failed! Expected " + nextRound + 
+                                  " but got " + game.getCurrentRound() + ". Forcing correction.");
+                // Force correction if somehow it didn't take
+                game.startNextRoundWithExplicitNumber(nextPuzzle, nextRound);
+                System.out.println("START NEXT ROUND: After correction, round is now: " + game.getCurrentRound());
+            }
+            
+            // Verify game state again after advancement
+            System.out.println("START NEXT ROUND: UPDATED GAME STATE: " + gameId);
+            System.out.println("  ID: " + game.getId());
+            System.out.println("  Current Round: " + game.getCurrentRound() + " of " + game.getTotalRounds());
+            System.out.println("  Puzzle: " + (game.getPuzzle() != null ? game.getPuzzle().getId() + " - " + game.getPuzzle().getName() : "null"));
+            
+            return game;
+        } finally {
+            // Clean up the tracking maps to prevent memory leaks
+            roundAdvancingMap.remove(roundKey);
+            // We keep the player request map entries for auditing purposes
+            System.out.println("START NEXT ROUND: Completed processing for game " + gameId + ", round " + currentRound);
+        }
     }
 
     private Puzzle getRandomPuzzle() {

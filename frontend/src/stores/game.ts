@@ -109,6 +109,25 @@ export const useGameStore = defineStore('game', {
     handleWebSocketMessage(message: WebSocketMessage) {
       console.log('Received game message:', message);
 
+      // First check if we have a proper game ID in the message payload
+      if (message.payload && typeof message.payload === 'object' && 'id' in message.payload) {
+        const messageGameId = message.payload.id;
+        const currentGameId = this.gameState?.id;
+
+        // If this message is for a different game, ignore it
+        if (currentGameId && messageGameId && messageGameId !== currentGameId) {
+          console.log(`Ignoring message for different game ID: ${messageGameId}, our game is: ${currentGameId}`);
+          return;
+        }
+      }
+
+      // For direct game objects (not wrapped in payload)
+      if (message && typeof message === 'object' && 'id' in message && message.id &&
+          this.gameState?.id && message.id !== this.gameState.id) {
+        console.log(`Ignoring direct game object for different game ID: ${message.id}, our game is: ${this.gameState.id}`);
+        return;
+      }
+
       // First check if this is a direct score update (personal message)
       // These come directly to the player's queue
       if (message.success === true && message.score !== undefined) {
@@ -139,6 +158,37 @@ export const useGameStore = defineStore('game', {
       // Handle other message types
       switch (message.type) {
         case 'GAME_STATE':
+          console.log('📊 GAME_STATE UPDATE: Received new game state');
+
+          // Check if the payload contains a valid game state
+          if (!message.payload || typeof message.payload !== 'object' || !('id' in message.payload)) {
+            console.log('📊 GAME_STATE UPDATE: Invalid payload, ignoring');
+            return;
+          }
+
+          // Check if this is for our current game
+          if (this.gameState && message.payload.id !== this.gameState.id) {
+            console.log(`📊 GAME_STATE UPDATE: Message for different game ID: ${message.payload.id}, our game is: ${this.gameState.id}`);
+            return;
+          }
+
+          if (this.gameState && message.payload) {
+            const oldRound = this.gameState.currentRound;
+            const newRound = message.payload.currentRound;
+            console.log(`📊 GAME_STATE UPDATE: Round change from ${oldRound} to ${newRound}`);
+
+            if (newRound !== oldRound) {
+              console.log('📊 GAME_STATE UPDATE: Round number has changed!');
+            }
+
+            // Check for inconsistent round number (going backward)
+            if (newRound < oldRound) {
+              console.log(`📊 GAME_STATE UPDATE: WARNING - Round going backward from ${oldRound} to ${newRound}, ignoring`);
+              return;
+            }
+          }
+
+          // Apply the game state update
           this.gameState = message.payload;
           break;
         case 'AI_RESPONSE':
@@ -275,35 +325,72 @@ export const useGameStore = defineStore('game', {
       console.log('Current player exists:', !!this.currentPlayer);
       console.log('Game state exists:', !!this.gameState);
 
-      if (!this.stompClient || !this.isConnected || !this.currentPlayer || !this.gameState) {
-        console.error('GameStore: Cannot submit solution - missing required state');
-        return;
-      }
+      return new Promise((resolve, reject) => {
+        if (!this.stompClient || !this.isConnected || !this.currentPlayer || !this.gameState) {
+          console.error('GameStore: Cannot submit solution - missing required state');
 
-      // Capture state in local variables
-      const gameId = this.gameState.id;
-      const playerId = this.currentPlayer.id;
-      const username = this.currentPlayer.username;
-      const picture = this.currentPlayer.picture || '';
+          // Try to reconnect if not connected but have other required state
+          if (!this.isConnected && this.currentPlayer && this.gameState) {
+            console.log('GameStore: Not connected when trying to submit solution, attempting to reconnect...');
+            this.attemptReconnect(this.gameState.id, this.currentPlayer);
 
-      // First, ensure we're fully joined and recognized by the server
-      this.stompClient.publish({
-        destination: '/app/game/join',
-        body: JSON.stringify({
-          gameId: gameId,
-          playerId: playerId,
-          username: username,
-          picture: picture
-        })
-      });
+            // Set a retry after reconnection attempt
+            setTimeout(() => {
+              if (this.isConnected && this.stompClient && this.currentPlayer && this.gameState) {
+                console.log('GameStore: Reconnected successfully, retrying solution submission');
+                this.submitSolution(code).then(resolve).catch(reject);
+              } else {
+                console.error('GameStore: Failed to reconnect for solution submission');
+                reject(new Error('Failed to reconnect for submission'));
+              }
+            }, 2500);
+            return;
+          }
 
-      console.log('GameStore: Re-joined game to ensure membership');
-      console.log(`GameStore: Will publish to /app/game/${gameId}/submit after delay`);
+          reject(new Error('Missing required state for submission'));
+          return;
+        }
 
-      // Use a longer delay (1000ms) to ensure the server has time to process the join
-      setTimeout(() => {
-        if (this.stompClient && this.currentPlayer && this.gameState) {
-          // Try a different approach to submit the solution
+        // Capture state in local variables to avoid issues with "this" context
+        const gameId = this.gameState.id;
+        const playerId = this.currentPlayer.id;
+        const username = this.currentPlayer.username;
+        const picture = this.currentPlayer.picture || '';
+        const stompClient = this.stompClient;
+
+        // First, ensure we're fully joined and recognized by the server
+        try {
+          stompClient.publish({
+            destination: '/app/game/join',
+            body: JSON.stringify({
+              gameId: gameId,
+              playerId: playerId,
+              username: username,
+              picture: picture
+            })
+          });
+
+          console.log('GameStore: Re-joined game to ensure membership');
+          console.log(`GameStore: Will publish to /app/game/${gameId}/submit after delay`);
+        } catch (err) {
+          console.error('GameStore: Error re-joining game:', err);
+          // Set isConnected to false to trigger reconnection on next attempt
+          this.isConnected = false;
+          reject(err);
+          return;
+        }
+
+        // Use a delay to ensure the server has time to process the join
+        setTimeout(() => {
+          // Check connection state again before proceeding
+          if (!this.isConnected || !this.stompClient) {
+            console.error('GameStore: Lost connection after re-joining, will retry');
+            this.isConnected = false;
+            reject(new Error('Connection lost after joining'));
+            return;
+          }
+
+          // Try to submit the solution
           try {
             // Format 1: Standard
             this.stompClient.publish({
@@ -315,80 +402,130 @@ export const useGameStore = defineStore('game', {
             });
 
             console.log('GameStore: Solution submitted via standard endpoint');
+            resolve(true);
 
-            // Format 2: Alternative (in case the first format has issues)
-            setTimeout(() => {
-              if (this.stompClient) {
-                this.stompClient.publish({
-                  destination: '/app/game/submit',
-                  body: JSON.stringify({
-                    gameId: gameId,
-                    code: code,
-                    playerId: playerId
-                  })
-                });
-                console.log('GameStore: Solution also submitted via alternative endpoint');
-              }
-            }, 300);
+            // Add a connection health check to detect potential issues
+            this.startConnectionHealthCheck();
           } catch (err) {
-            console.error('Error submitting solution:', err);
+            console.error('GameStore: Error submitting solution:', err);
+            this.isConnected = false;
+            this.startConnectionHealthCheck();
+            reject(err);
           }
-        }
-      }, 1000);
+        }, 500);
+      });
     },
 
     markPuzzleCompleted() {
-      if (!this.stompClient || !this.isConnected || !this.currentPlayer || !this.gameState) return;
+      if (!this.stompClient || !this.isConnected || !this.currentPlayer || !this.gameState) {
+        console.error('GameStore: Cannot mark puzzle as completed - missing required state');
 
-      // Capture state in local variables
+        // Try to reconnect if not connected but have other required state
+        if (!this.isConnected && this.currentPlayer && this.gameState) {
+          console.log('GameStore: Not connected when trying to mark completion, attempting to reconnect...');
+          this.attemptReconnect(this.gameState.id, this.currentPlayer);
+
+          // Set a retry after reconnection attempt
+          setTimeout(() => {
+            if (this.isConnected && this.stompClient) {
+              console.log('GameStore: Reconnected successfully, retrying puzzle completion');
+              this.markPuzzleCompleted();
+            } else {
+              console.error('GameStore: Failed to reconnect for puzzle completion');
+            }
+          }, 2500);
+        }
+        return;
+      }
+
+      // Capture state in local variables to avoid issues with "this" context changing
       const gameId = this.gameState.id;
       const playerId = this.currentPlayer.id;
       const username = this.currentPlayer.username;
       const picture = this.currentPlayer.picture || '';
+      const stompClient = this.stompClient;
 
       // First, ensure we're fully joined and recognized by the server
-      this.stompClient.publish({
-        destination: '/app/game/join',
-        body: JSON.stringify({
-          gameId: gameId,
-          playerId: playerId,
-          username: username,
-          picture: picture
-        })
-      });
+      try {
+        stompClient.publish({
+          destination: '/app/game/join',
+          body: JSON.stringify({
+            gameId: gameId,
+            playerId: playerId,
+            username: username,
+            picture: picture
+          })
+        });
 
-      console.log('GameStore: Re-joined game to ensure membership before completing puzzle');
+        console.log('GameStore: Re-joined game to ensure membership before completing puzzle');
+      } catch (err) {
+        console.error('GameStore: Error re-joining game for completion:', err);
+        // Set isConnected to false to trigger reconnection on next attempt
+        this.isConnected = false;
+        return;
+      }
 
       // Use a longer delay to ensure the server has time to process the join
       setTimeout(() => {
-        if (this.stompClient && this.currentPlayer && this.gameState) {
-          try {
-            // Format 1: Standard
-            this.stompClient.publish({
-              destination: `/app/game/${gameId}/complete`,
-              body: JSON.stringify({
-                playerId: playerId
-              })
-            });
+        // Check connection state again before proceeding
+        if (!this.isConnected || !this.stompClient) {
+          console.error('GameStore: Lost connection after re-joining for completion, will retry');
 
-            console.log('GameStore: Puzzle completion marked via standard endpoint');
+          // Mark as disconnected
+          this.isConnected = false;
 
-            // Format 2: Alternative (in case the first format has issues)
-            setTimeout(() => {
-              if (this.stompClient) {
-                this.stompClient.publish({
-                  destination: '/app/game/complete',
-                  body: JSON.stringify({
-                    gameId: gameId,
-                    playerId: playerId
-                  })
-                });
-                console.log('GameStore: Puzzle completion also marked via alternative endpoint');
+          // Set a retry with increased delay
+          setTimeout(() => {
+            console.log('GameStore: Retrying puzzle completion after connection loss');
+            this.markPuzzleCompleted();
+          }, 3000);
+          return;
+        }
+
+        try {
+          // Format 1: Standard
+          this.stompClient.publish({
+            destination: `/app/game/${gameId}/complete`,
+            body: JSON.stringify({
+              playerId: playerId
+            })
+          });
+
+          console.log('GameStore: Puzzle completion marked via standard endpoint');
+
+          // Format 2: Alternative (in case the first format has issues)
+          setTimeout(() => {
+            // Verify connection again before sending alternative format
+            if (this.stompClient && this.isConnected) {
+              this.stompClient.publish({
+                destination: '/app/game/complete',
+                body: JSON.stringify({
+                  gameId: gameId,
+                  playerId: playerId
+                })
+              });
+              console.log('GameStore: Puzzle completion also marked via alternative endpoint');
+
+              // Manually update local state as a fallback if needed
+              if (this.gameState && this.currentPlayer) {
+                const playerId = this.currentPlayer.id;
+                if (this.gameState.playerStatus[playerId]) {
+                  this.gameState.playerStatus[playerId].hasCompleted = true;
+                  console.log('GameStore: Manually updated local player completion status');
+                }
               }
-            }, 300);
-          } catch (err) {
-            console.error('Error marking puzzle as completed:', err);
-          }
+            } else {
+              console.error('GameStore: Connection lost before sending alternative complete format');
+            }
+          }, 300);
+        } catch (err) {
+          console.error('Error marking puzzle as completed:', err);
+
+          // Mark connection as potentially problematic
+          this.isConnected = false;
+
+          // Start connection health check to recover
+          this.startConnectionHealthCheck();
         }
       }, 1000);
     },
@@ -488,8 +625,191 @@ export const useGameStore = defineStore('game', {
       qualityScore?: number;
       correctnessScore?: number;
     }) {
-      console.log('Game store handling score update:', scoreData);
+      console.log('GameStore: handleScoreUpdate triggered with data:', scoreData);
+
+      // Ensure we have valid score data
+      if (!scoreData || typeof scoreData.score !== 'number') {
+        console.error('GameStore: Invalid score data received:', scoreData);
+        return;
+      }
+
       // This method just exists so components can subscribe to it with $onAction
+      console.log('GameStore: Score update processed. Components listening via $onAction should respond.');
+
+      // Don't actually need to do anything here since the UI handles its own state
+      // This method exists primarily for action subscription from components
+    },
+
+    async reconnectToGame() {
+      if (!this.currentPlayer || !this.gameState) {
+        console.error('Cannot reconnect - missing player or game state');
+        return false;
+      }
+
+      console.log('Explicitly attempting to reconnect to game server...');
+
+      // Force disconnect if there's an existing client
+      if (this.stompClient) {
+        try {
+          this.stompClient.deactivate();
+          console.log('Deactivated existing STOMP client');
+        } catch (e) {
+          console.warn('Error deactivating STOMP client:', e);
+        }
+        this.stompClient = null;
+      }
+
+      this.isConnected = false;
+
+      // Return a promise that resolves when connection is established
+      return new Promise<boolean>((resolve) => {
+        // Setup with retry attempts
+        let retryCount = 0;
+        const maxRetries = 5;
+        const connect = () => {
+          if (retryCount >= maxRetries) {
+            console.error(`Failed to reconnect after ${maxRetries} attempts`);
+            resolve(false);
+            return;
+          }
+
+          retryCount++;
+          console.log(`Connection attempt ${retryCount}/${maxRetries}`);
+
+          // Initialize STOMP connection
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+          const wsUrl = baseUrl.replace(/^http/, 'ws');
+
+          const client = new Client({
+            brokerURL: `${wsUrl}/game`,
+            debug: function (str) {
+              console.log('STOMP:', str);
+            },
+            reconnectDelay: 5000
+          });
+
+          client.onConnect = (frame) => {
+            console.log('Game STOMP connection established');
+            this.isConnected = true;
+            this.stompClient = client;
+            this.connectionRetryCount = 0;
+
+            // Subscribe to game updates
+            if (this.gameState) {
+              client.subscribe(`/topic/game/${this.gameState.id}`, (message) => {
+                try {
+                  const data = JSON.parse(message.body);
+                  this.handleWebSocketMessage(data);
+                } catch (error) {
+                  console.error('Error parsing WebSocket message:', error);
+                }
+              });
+
+              // Subscribe to personal queue
+              if (this.currentPlayer) {
+                client.subscribe(`/user/${this.currentPlayer.id}/queue/game`, (message) => {
+                  try {
+                    const data = JSON.parse(message.body);
+                    this.handleWebSocketMessage(data);
+                  } catch (error) {
+                    console.error('Error parsing personal WebSocket message:', error);
+                  }
+                });
+
+                // Join the game
+                client.publish({
+                  destination: '/app/game/join',
+                  body: JSON.stringify({
+                    gameId: this.gameState.id,
+                    playerId: this.currentPlayer.id,
+                    username: this.currentPlayer.username,
+                    picture: this.currentPlayer.picture || ''
+                  })
+                });
+              }
+            }
+
+            // Success!
+            this.startConnectionHealthCheck();
+            resolve(true);
+          };
+
+          client.onStompError = (frame) => {
+            console.error('STOMP error:', frame.headers, frame.body);
+            setTimeout(connect, 1000 * Math.min(retryCount + 1, 5));
+          };
+
+          client.onWebSocketClose = () => {
+            console.warn('WebSocket connection closed');
+            this.isConnected = false;
+            if (retryCount < maxRetries) {
+              setTimeout(connect, 1000 * Math.min(retryCount + 1, 5));
+            } else {
+              resolve(false);
+            }
+          };
+
+          try {
+            client.activate();
+          } catch (e) {
+            console.error('Error activating STOMP client:', e);
+            setTimeout(connect, 1000 * Math.min(retryCount + 1, 5));
+          }
+        };
+
+        // Start the connection process
+        connect();
+      });
+    },
+
+    startNextRound() {
+      if (!this.stompClient || !this.isConnected || !this.currentPlayer || !this.gameState) {
+        console.error('GameStore: Cannot start next round - missing required state');
+        return Promise.reject(new Error('Missing required state'));
+      }
+
+      console.log('GameStore: Starting next round request');
+
+      return new Promise((resolve, reject) => {
+        // Capture state in local variables to avoid null reference issues
+        const gameId = this.gameState!.id;
+        const playerId = this.currentPlayer!.id;
+        const expectedNextRound = this.gameState!.currentRound + 1;
+        const stompClient = this.stompClient!;
+
+        try {
+          // Ensure we're connected
+          if (!this.isConnected) {
+            console.log('GameStore: Reconnecting before starting next round');
+            this.reconnectToGame().then(connected => {
+              if (connected) {
+                console.log('GameStore: Successfully reconnected, retrying next round request');
+                this.startNextRound().then(resolve).catch(reject);
+              } else {
+                reject(new Error('Failed to reconnect'));
+              }
+            });
+            return;
+          }
+
+          // Send request to start next round
+          stompClient.publish({
+            destination: `/app/game/${gameId}/next-round`,
+            body: JSON.stringify({
+              playerId: playerId,
+              gameId: gameId,
+              currentRound: this.gameState!.currentRound,
+              expectedNextRound: expectedNextRound
+            })
+          });
+
+          console.log(`GameStore: Next round request sent for game ${gameId} - expecting round ${expectedNextRound}`);
+          resolve(true);
+        } catch (err) {
+          console.error('GameStore: Error requesting next round:', err);
+          reject(err);
+        }
+      });
     }
   }
 });
