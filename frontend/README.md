@@ -1,6 +1,32 @@
 # frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+This is the web client for Promptmaster, built with Vue 3 and Vite.
+
+## Features
+- Modern, responsive UI for coding puzzles and versus mode
+- Real-time matchmaking and gameplay using WebSockets
+- ELO-based ranking and user profiles
+- Integrated code editor and AI assistant
+
+## Project Structure
+- `src/views/Lobby.vue`: Game lobby, matchmaking, and challenges
+- `src/views/Game.vue`: Versus gameplay (head-to-head mode)
+- `src/views/README.versus.md`: [Versus mode documentation](./src/views/README.versus.md)
+- `src/components/`: Shared UI components
+- `src/services/`: API and WebSocket clients
+- `src/stores/`: Pinia state management
+- `src/types/`: TypeScript types
+- `src/router/`: Vue Router configuration
+- `src/assets/`: Static assets
+
+## Database Schema & Backend
+Promptmaster uses a relational database for users, puzzles, sessions, and more. See the [main README](../README.md#database-schema-summary) for a summary and the [backend README](../backend/README.md) for details.
+
+## Deployment
+Promptmaster is deployed to Azure Container Apps using GitHub Actions. See the [main README](../README.md#deployment) for details.
+
+## Versus Mode
+Promptmaster features a real-time versus mode for head-to-head coding battles. See [`src/views/README.versus.md`](./src/views/README.versus.md) for details on gameplay, matchmaking, and scoring.
 
 ## Recommended IDE Setup
 

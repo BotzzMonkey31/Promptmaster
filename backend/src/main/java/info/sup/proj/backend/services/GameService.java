@@ -21,13 +21,9 @@ public class GameService {
     private PuzzleRepository puzzleRepository;
 
     @Autowired
-    private ScoreService scoreService;
-
-    @Autowired
     private AiService aiService;
 
     public Game createGame(Player player1, Player player2) {
-        // Get a random puzzle for the first round
         var puzzle = getRandomPuzzle();
         if (puzzle == null) {
             throw new IllegalStateException("No puzzles available");
@@ -37,7 +33,7 @@ public class GameService {
             UUID.randomUUID().toString(),
             List.of(player1, player2),
             puzzle,
-            3 // Total rounds
+            3
         );
 
         activeGames.put(game.getId(), game);
@@ -49,19 +45,15 @@ public class GameService {
     }
 
     public Map<String, Object> submitSolution(String playerId, String code) {
-        // Find the game this player is in
         var game = findGameByPlayerId(playerId);
         if (game == null) {
             throw new IllegalStateException("Player not in any active game");
         }
 
-        // Update the player's code in the game
         game.updateCurrentCode(playerId, code);
 
-        // Get the current puzzle
         Puzzle currentPuzzle = game.getCurrentPuzzle();
         
-        // Create evaluation prompt
         String evaluationPrompt = String.format(
             "Please evaluate this code solution for the following puzzle:\n" +
             "Puzzle: %s\n" +
@@ -74,11 +66,9 @@ public class GameService {
             currentPuzzle.getDescription()
         );
 
-        // Get AI evaluation
         String evaluationResponse = aiService.getCodeEvaluation(evaluationPrompt, code, currentPuzzle.getType());
         Map<String, Integer> scores = parseAiEvaluation(evaluationResponse);
 
-        // Calculate total score
         int correctnessScore = scores.get("correctness");
         int qualityScore = scores.get("quality");
         int timeBonus = calculateTimeBonus(game.getRoundStartTime());
@@ -89,7 +79,6 @@ public class GameService {
             timeBonus * 0.3
         );
 
-        // Update player's score
         game.updatePlayerScore(playerId, totalScore);
 
         var result = new HashMap<String, Object>();
@@ -100,7 +89,6 @@ public class GameService {
         result.put("timeBonus", timeBonus);
         result.put("playerId", playerId);
         
-        // Update game status and broadcast it
         Map<String, Object> gameState = new HashMap<>();
         gameState.put("type", "GAME_STATE");
         gameState.put("payload", game);
@@ -112,11 +100,10 @@ public class GameService {
         long timeTaken = System.currentTimeMillis() - startTime;
         long timeInSeconds = timeTaken / 1000;
         
-        // Base time limits (in seconds) for different scores
-        final int perfectTime = 60;  // 1 minute
-        final int goodTime = 120;    // 2 minutes
-        final int okayTime = 180;    // 3 minutes
-        final int maxTime = 300;     // 5 minutes
+        final int perfectTime = 60;
+        final int goodTime = 120;
+        final int okayTime = 180;
+        final int maxTime = 300;
         
         if (timeInSeconds <= perfectTime) {
             return 100;
@@ -165,12 +152,9 @@ public class GameService {
             throw new IllegalStateException("Player not in any active game");
         }
         
-        // Mark this specific player as completed, but don't affect other players
         game.markPlayerCompleted(playerId);
         
-        // Check if all players have completed their puzzles
         if (game.allPlayersCompleted()) {
-            // If this was the final round, end the game
             if (game.getCurrentRound() >= game.getTotalRounds()) {
                 game.endGame();
             }
@@ -189,7 +173,6 @@ public class GameService {
         return game;
     }
 
-    // Make this method public so it can be called from the controller
     public Game findGameByPlayerId(String playerId) {
         return activeGames.values().stream()
             .filter(game -> game.hasPlayer(playerId))
@@ -197,28 +180,20 @@ public class GameService {
             .orElse(null);
     }
 
-    // Add new method to list all active games
     public List<Game> listAllGames() {
         return new ArrayList<>(activeGames.values());
     }
 
-    // A map to track games that are currently in the process of advancing rounds
     private final Map<String, Boolean> roundAdvancingMap = new ConcurrentHashMap<>();
     
-    // A map to track which players have requested next round for a game
     private final Map<String, Boolean> playerNextRoundRequestMap = new ConcurrentHashMap<>();
     
-    /**
-     * Clean, simplified approach to round advancement that ensures each round is only advanced once.
-     */
     public synchronized Game startNextRound(String gameId, String playerId) {
-        // Get the game from the active games map
         Game game = activeGames.get(gameId);
         if (game == null) {
             throw new IllegalArgumentException("Game not found: " + gameId);
         }
         
-        // Check if the player is part of this game
         if (!game.hasPlayer(playerId)) {
             throw new IllegalArgumentException("Player is not part of this game");
         }
@@ -226,7 +201,6 @@ public class GameService {
         int currentRound = game.getCurrentRound();
         int totalRounds = game.getTotalRounds();
         
-        // Enforce valid round progression
         if (currentRound <= 0) {
             currentRound = 1;
         }
@@ -235,51 +209,40 @@ public class GameService {
             return game;
         }
         
-        // Generate a unique key for this game and round
         String roundKey = gameId + ":" + currentRound;
         
-        // Record this player's request
         String playerRequestKey = roundKey + ":" + playerId;
         playerNextRoundRequestMap.put(playerRequestKey, true);
         
-        // Check if this round is already being advanced
         if (Boolean.TRUE.equals(roundAdvancingMap.get(roundKey))) {
             return game;
         }
         
-        // Mark this round as being advanced
         roundAdvancingMap.put(roundKey, true);
         
         try {
-            // Ensure all players are marked as completed for this round
             if (!game.allPlayersCompleted()) {
                 for (Player player : game.getPlayers()) {
                     game.markPlayerCompleted(player.getId());
                 }
             }
 
-            // Get the next puzzle
             Puzzle nextPuzzle = getRandomPuzzle();
             if (nextPuzzle == null) {
                 throw new IllegalStateException("No puzzles available");
             }
             
-            // Calculate the next round number explicitly 
             int nextRound = currentRound + 1;
             
-            // Validate the next round number
             if (nextRound > totalRounds) {
                 nextRound = totalRounds;
             }
             
-            // Start the next round with an explicit round number to prevent any skipping
             game.startNextRoundWithExplicitNumber(nextPuzzle, nextRound);
             
             return game;
         } finally {
-            // Clean up the tracking maps to prevent memory leaks
             roundAdvancingMap.remove(roundKey);
-            // We keep the player request map entries for auditing purposes
         }
     }
 
@@ -289,7 +252,6 @@ public class GameService {
             return null;
         }
         
-        // Find the File Word Counter puzzle
         return puzzles.stream()
             .filter(puzzle -> puzzle.getName().equals("File Word Counter"))
             .findFirst()
