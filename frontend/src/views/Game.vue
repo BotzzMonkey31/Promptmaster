@@ -208,6 +208,7 @@ import { bracketMatching } from "@codemirror/language";
 import { closeBrackets } from "@codemirror/autocomplete";
 import { history } from "@codemirror/commands";
 import apiClient from '../services/api';
+import axios from 'axios';
 
 const route = useRoute();
 const router = useRouter();
@@ -513,7 +514,7 @@ const closeScorePopup = async () => {
       setTimeout(async () => {
         console.log('🎯 SCORE POPUP: Attempting to start next round...');
         try {
-          // Reset UI for new round
+          // Reset UI for new round - moved to round watcher
           timeRemaining.value = 300;
           textBubble.value = "What would you like to do for this round?";
           code.value = '';
@@ -565,8 +566,47 @@ const closeScorePopup = async () => {
         console.log('🎯 SCORE POPUP: Game is already in ENDED state, showing results');
       } else {
         console.log('🎯 SCORE POPUP: Waiting for game to end...');
+
+        // If game hasn't ended after a timeout, refresh to ensure we catch the end state
+        setTimeout(() => {
+          if (gameState.value?.state !== 'ENDED') {
+            console.log('🎯 SCORE POPUP: Game still not ended after timeout, forcing game end display');
+            // Manually show game results with current scores
+            displayGameResults();
+          }
+        }, 5000);
       }
     }
+  }
+};
+
+// Change the helper function name to avoid conflict with the ref variable
+const displayGameResults = () => {
+  if (gameState.value && currentPlayer.value) {
+    const playerId = currentPlayer.value.id;
+    const playerScore = gameState.value.playerStatus[playerId]?.score || 0;
+
+    // Find opponent
+    const opponent = gameState.value.players.find(p => p.id !== playerId);
+    const opponentScore = opponent ? gameState.value.playerStatus[opponent.id]?.score || 0 : 0;
+
+    // Determine result
+    let result: 'WIN' | 'LOSS' | 'DRAW' = 'DRAW';
+    if (playerScore > opponentScore) {
+      result = 'WIN';
+    } else if (playerScore < opponentScore) {
+      result = 'LOSS';
+    }
+
+    // Set game results to display
+    gameResults.value = {
+      result,
+      yourScore: playerScore,
+      opponentScore,
+      eloChange: result === 'WIN' ? 25 : result === 'LOSS' ? -15 : 0
+    };
+
+    showGameResults.value = true;
   }
 };
 
@@ -1031,10 +1071,34 @@ watch(() => gameState.value?.playerStatus, (newStatus, oldStatus) => {
 watch(() => gameState.value?.currentRound, (newRound, oldRound) => {
   if (!newRound || !oldRound) return;
   console.log(`📊 ROUND WATCHER: Round changed from ${oldRound} to ${newRound}`);
+
+  if (newRound !== oldRound) {
+    // Reset UI for new round
+    timeRemaining.value = 300;
+    textBubble.value = "What would you like to do for this round?";
+    code.value = '';
+
+    // Clear the editor
+    if (editor.value) {
+      editor.value.dispatch({
+        changes: { from: 0, to: editor.value.state.doc.length, insert: '' }
+      });
+    }
+
+    // Show notification about new round
+    gameNotification.value = `Round ${oldRound} completed! Starting round ${newRound}...`;
+    setTimeout(() => {
+      if (gameNotification.value.includes(`Round ${oldRound} completed`)) {
+        gameNotification.value = '';
+      }
+    }, 5000);
+  }
 });
 
 // Watch for game state changes to detect end of game
-watch(() => gameState.value?.state, (newState) => {
+watch(() => gameState.value?.state, (newState, oldState) => {
+  console.log(`🎮 GAME STATE CHANGE: from "${oldState}" to "${newState}"`);
+
   if (newState === 'ENDED') {
     console.log('🏁 GAME OVER: Game has ended, showing results');
 

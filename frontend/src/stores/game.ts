@@ -16,7 +16,6 @@ export const useGameStore = defineStore('game', {
 
   actions: {
     initializeGame(gameId: string, player: Player) {
-      console.log('Initializing game:', gameId, player);
       this.currentPlayer = player;
 
       // Initialize STOMP connection
@@ -30,13 +29,12 @@ export const useGameStore = defineStore('game', {
       this.stompClient = new Client({
         brokerURL: `${wsUrl}/game`,
         debug: function(str) {
-          console.log('STOMP: ' + str);
+          // Debug logs removed
         },
         reconnectDelay: 5000,
         heartbeatIncoming: 4000,
         heartbeatOutgoing: 4000,
         onConnect: () => {
-          console.log('Game STOMP connection established');
           this.isConnected = true;
           this.connectionRetryCount = 0;
 
@@ -81,7 +79,6 @@ export const useGameStore = defineStore('game', {
           this.attemptReconnect(gameId, player);
         },
         onDisconnect: () => {
-          console.log('STOMP disconnected');
           this.isConnected = false;
           this.attemptReconnect(gameId, player);
         }
@@ -92,24 +89,19 @@ export const useGameStore = defineStore('game', {
 
     attemptReconnect(gameId: string, player: Player) {
       if (this.connectionRetryCount >= 5) {
-        console.log('Max reconnection attempts reached');
         return;
       }
 
       this.connectionRetryCount++;
-      console.log(`Attempting to reconnect (attempt ${this.connectionRetryCount})...`);
 
       setTimeout(() => {
         if (!this.isConnected && this.stompClient) {
-          console.log('Reconnecting to game server...');
           this.initializeGame(gameId, player);
         }
       }, 2000);
     },
 
     handleWebSocketMessage(message: WebSocketMessage) {
-      console.log('Received game message:', message);
-
       // First check if we have a proper game ID in the message payload
       if (message.payload && typeof message.payload === 'object' && 'id' in message.payload) {
         const messageGameId = message.payload.id;
@@ -117,7 +109,6 @@ export const useGameStore = defineStore('game', {
 
         // If this message is for a different game, ignore it
         if (currentGameId && messageGameId && messageGameId !== currentGameId) {
-          console.log(`Ignoring message for different game ID: ${messageGameId}, our game is: ${currentGameId}`);
           return;
         }
       }
@@ -125,15 +116,12 @@ export const useGameStore = defineStore('game', {
       // For direct game objects (not wrapped in payload)
       if (message && typeof message === 'object' && 'id' in message && message.id &&
           this.gameState?.id && message.id !== this.gameState.id) {
-        console.log(`Ignoring direct game object for different game ID: ${message.id}, our game is: ${this.gameState.id}`);
         return;
       }
 
       // First check if this is a direct score update (personal message)
       // These come directly to the player's queue
       if (message.success === true && message.score !== undefined) {
-        console.log('Detected direct score update message for this player:', message.score);
-
         // If we have gameState and currentPlayer, update the score directly
         if (this.gameState && this.currentPlayer) {
           const playerId = this.currentPlayer.id;
@@ -141,8 +129,17 @@ export const useGameStore = defineStore('game', {
           // Ensure it's only processed by the player it's meant for
           if (this.gameState.playerStatus[playerId]) {
             const oldScore = this.gameState.playerStatus[playerId].score;
+
+            // Store scores by round to properly accumulate
+            if (!this.gameState.scores) {
+              this.gameState.scores = {};
+            }
+
+            // Add score for current round
+            const currentRound = this.gameState.currentRound;
+
+            // Update player's score
             this.gameState.playerStatus[playerId].score = message.score;
-            console.log(`Updated player ${playerId} score: ${oldScore} -> ${message.score}`);
 
             // Emit a score update event for components to react to
             this.handleScoreUpdate({
@@ -159,32 +156,26 @@ export const useGameStore = defineStore('game', {
       // Handle other message types
       switch (message.type) {
         case 'GAME_STATE':
-          console.log('📊 GAME_STATE UPDATE: Received new game state');
-
           // Check if the payload contains a valid game state
           if (!message.payload || typeof message.payload !== 'object' || !('id' in message.payload)) {
-            console.log('📊 GAME_STATE UPDATE: Invalid payload, ignoring');
             return;
           }
 
           // Check if this is for our current game
           if (this.gameState && message.payload.id !== this.gameState.id) {
-            console.log(`📊 GAME_STATE UPDATE: Message for different game ID: ${message.payload.id}, our game is: ${this.gameState.id}`);
             return;
           }
 
           if (this.gameState && message.payload) {
             const oldRound = this.gameState.currentRound;
             const newRound = message.payload.currentRound;
-            console.log(`📊 GAME_STATE UPDATE: Round change from ${oldRound} to ${newRound}`);
 
-            if (newRound !== oldRound) {
-              console.log('📊 GAME_STATE UPDATE: Round number has changed!');
-            }
+            // Check for state change (especially to detect ENDED state)
+            const oldState = this.gameState.state;
+            const newState = message.payload.state;
 
             // Check for inconsistent round number (going backward)
             if (newRound < oldRound) {
-              console.log(`📊 GAME_STATE UPDATE: WARNING - Round going backward from ${oldRound} to ${newRound}, ignoring`);
               return;
             }
           }
@@ -193,9 +184,6 @@ export const useGameStore = defineStore('game', {
           this.gameState = message.payload;
           break;
         case 'AI_RESPONSE':
-          console.log('Handling AI response:', message);
-          console.log('Raw AI response message:', JSON.stringify(message));
-
           // Extract code, trying different possible formats
           let codeContent: any = message.code;
 
@@ -217,7 +205,6 @@ export const useGameStore = defineStore('game', {
           };
           break;
         case 'SUBMIT_SOLUTION':
-          console.log('Handling solution submission response:', message);
           break;
         case 'ERROR':
           console.error('Received ERROR message from server:', message);
@@ -226,7 +213,7 @@ export const useGameStore = defineStore('game', {
 
             // Check for specific errors and handle them
             if (message.payload.message.includes('not in any active game')) {
-              console.log('Player not in active game error detected - this is expected and will be handled');
+              // This is expected and will be handled
             }
           }
 

@@ -108,24 +108,12 @@ const startFreshSession = async (puzzleId: string | string[]) => {
 
     const id = Array.isArray(puzzleId) ? puzzleId[0] : puzzleId;
 
-    // Log what we're sending to help with debugging
-    console.log(`Starting fresh puzzle with puzzleId: ${id}, userId: ${userId}`);
-
-    // Ensure userId is properly converted to a number
-    const userIdNum = Number(userId);
-
-    if (isNaN(userIdNum)) {
-      console.error('User ID is not a valid number:', userId);
-      throw new Error('Invalid user ID format');
-    }
-
     // Reset the session to start fresh
     const response = await apiClient.post('/ai/start-fresh', {
       puzzleId: parseInt(id as string),
-      userId: userIdNum
+      userId: Number(userId)
     });
 
-    console.log('Start fresh response:', response.data);
     return true;
   } catch (error: any) {
     console.error('Error starting fresh session:', error);

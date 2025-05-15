@@ -20,7 +20,6 @@ public class Game {
         this.puzzle = puzzle;
         this.totalRounds = totalRounds;
         this.currentRound = 1;
-        System.out.println("GAME INIT: Created new game " + id + " starting with round 1");
         this.currentTurn = players.get(0).getId();
         this.playerStatus = new HashMap<>();
         this.state = GameState.IN_PROGRESS;
@@ -95,7 +94,11 @@ public class Game {
     public void updatePlayerScore(String playerId, int score) {
         PlayerStatus status = playerStatus.get(playerId);
         if (status != null) {
-            status.setScore(status.getScore() + score);
+            // Get the current score and add the new score
+            int currentScore = status.getScore();
+            int newScore = currentScore + score;
+            
+            status.setScore(newScore);
         }
     }
 
@@ -111,10 +114,8 @@ public class Game {
     }
 
     public void startNextRound(Puzzle newPuzzle) {
-        System.out.println("GAME MODEL: Starting next round - currentRound: " + currentRound);
         int previousRound = currentRound;
         currentRound++;
-        System.out.println("GAME MODEL: Round incremented from " + previousRound + " to " + currentRound);
         
         puzzle = newPuzzle;
         roundStartTime = System.currentTimeMillis();
@@ -125,7 +126,6 @@ public class Game {
         
         // Switch starting player
         currentTurn = players.get((currentRound - 1) % players.size()).getId();
-        System.out.println("GAME MODEL: Next round setup complete - current turn: " + currentTurn);
     }
 
     /**
@@ -136,18 +136,12 @@ public class Game {
      * @param roundNumber The explicit round number to set
      */
     public synchronized void startNextRoundWithExplicitNumber(Puzzle newPuzzle, int roundNumber) {
-        System.out.println("GAME MODEL: Starting next round with explicit number - from currentRound: " + currentRound + " to: " + roundNumber);
-        
         // Ensure the round number is valid (not less than current, not more than total)
         if (roundNumber < currentRound) {
-            System.out.println("GAME MODEL ERROR: Attempted to set round number (" + roundNumber + 
-                ") less than current round (" + currentRound + "). Ignoring.");
             return;
         }
         
         if (roundNumber > totalRounds) {
-            System.out.println("GAME MODEL WARNING: Attempted to set round number (" + roundNumber + 
-                ") greater than total rounds (" + totalRounds + "). Capping at " + totalRounds);
             roundNumber = totalRounds;
         }
         
@@ -156,16 +150,10 @@ public class Game {
         // Force the specific round number
         currentRound = roundNumber;
         
-        System.out.println("GAME MODEL: Round explicitly set from " + previousRound + " to " + currentRound);
-        
         // Ensure we have a valid puzzle
         if (newPuzzle == null) {
-            System.out.println("GAME MODEL ERROR: Null puzzle provided for round " + currentRound);
-            // Try to keep the existing puzzle rather than setting it to null
             if (puzzle == null) {
-                System.out.println("GAME MODEL ERROR: No existing puzzle to fallback to!");
-            } else {
-                System.out.println("GAME MODEL: Using existing puzzle as fallback");
+                return;
             }
         } else {
             puzzle = newPuzzle;
@@ -173,11 +161,9 @@ public class Game {
         
         // Reset round timer
         roundStartTime = System.currentTimeMillis();
-        System.out.println("GAME MODEL: Round timer reset to " + roundStartTime);
         
         // Reset player states for the new round
         resetPlayersForNewRound();
-        System.out.println("GAME MODEL: Next round setup complete - current turn: " + currentTurn);
     }
     
     /**

@@ -156,16 +156,12 @@ public class MatchmakingService {
                 if (potentialOpponent == null) return false;
 
                 int eloDiff = Math.abs(searchingElo - potentialOpponent.getElo());
-                System.out.println("Checking opponent: " + player.getUsername() + 
-                    " | ELO diff: " + eloDiff + 
-                    " | Range: " + eloRange);
                 return eloDiff <= eloRange;
             })
             .findFirst();
 
         if (opponent.isPresent()) {
             Player opponentPlayer = opponent.get();
-            System.out.println("Match found: " + searchingPlayer.getUsername() + " vs " + opponentPlayer.getUsername());
             
             try {
                 createAndStartGame(searchingPlayer, opponentPlayer);
@@ -179,18 +175,12 @@ public class MatchmakingService {
                 System.err.println("Error creating game: " + e.getMessage());
                 throw e;
             }
-        } else {
-            System.out.println("No suitable opponent found for: " + searchingPlayer.getUsername() + 
-                " (ELO: " + searchingElo + ", Range: " + eloRange + ")");
         }
     }
 
     private void createAndStartGame(Player player1, Player player2) {
-        System.out.println("Creating game for: " + player1.getUsername() + " vs " + player2.getUsername());
-        
         // Create the game
         var game = gameService.createGame(player1, player2);
-        System.out.println("Game created with ID: " + game.getId());
 
         // Notify both players
         for (Player player : List.of(player1, player2)) {
@@ -215,7 +205,6 @@ public class MatchmakingService {
                     "/queue/game",
                     gameStartInfo
                 );
-                System.out.println("Sent game start info to: " + player.getUsername());
             } catch (Exception e) {
                 System.err.println("Error sending game start info to " + player.getUsername() + ": " + e.getMessage());
                 throw e;

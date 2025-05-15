@@ -200,9 +200,7 @@ export default {
     },
   },
   mounted() {
-    this.fetchPuzzles().then(() => {
-      console.log('Received puzzles:', this.puzzles)
-    })
+    this.fetchPuzzles()
   },
 }
 </script>
