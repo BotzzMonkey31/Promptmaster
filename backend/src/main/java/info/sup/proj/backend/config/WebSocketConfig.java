@@ -23,20 +23,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Game endpoint
         registry.addEndpoint("/game")
                 .setAllowedOriginPatterns("*");
 
-        // Also add SockJS fallback for browsers that don't support WebSocket
         registry.addEndpoint("/game")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
 
-        // Chat endpoint
         registry.addEndpoint("/chat")
                 .setAllowedOriginPatterns("*");
 
-        // Also add SockJS fallback for browsers that don't support WebSocket
         registry.addEndpoint("/chat")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();

@@ -8,11 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import info.sup.proj.backend.services.GameService;
 import info.sup.proj.backend.services.AiService;
 import info.sup.proj.backend.model.Game;
-import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.services.AiService.ChatResponse;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.stream.Collectors;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 
@@ -43,9 +41,7 @@ public class GameController {
 
             messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
         } else {
-            // Log all active games for debugging
             gameService.listAllGames().forEach(g -> {
-                // Active games
             });
         }
     }
@@ -150,7 +146,6 @@ public class GameController {
             
             messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
         } else {
-            // Game not found or player not in game
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("type", "ERROR");
             Map<String, String> payload = new HashMap<>();
@@ -222,7 +217,6 @@ public class GameController {
         Integer expectedNextRound = (Integer) message.get("expectedNextRound");
         
         if (currentRound != null && expectedNextRound != null) {
-            // Current round and expected next round
         }
         
         if (playerId == null) {
@@ -241,14 +235,12 @@ public class GameController {
         }
         
         if (currentRound != null && game.getCurrentRound() != currentRound) {
-            // Current round mismatch
         }
         
         try {
             Game updatedGame = gameService.startNextRound(gameId, playerId);
             
             if (expectedNextRound != null && updatedGame.getCurrentRound() != expectedNextRound) {
-                // Round advancement unexpected
             }
             
             return updatedGame;

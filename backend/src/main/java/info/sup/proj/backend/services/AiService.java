@@ -82,7 +82,6 @@ public class AiService {
         this.deploymentName = config.getDeploymentName();
     }
     
-    // Added this protected method to make the service more testable
     protected OpenAIClient createOpenAIClient(AzureOpenAiConfig config) {
         return new OpenAIClientBuilder()
             .endpoint(config.getEndpoint())
@@ -91,7 +90,6 @@ public class AiService {
     }
 
     public ChatResponse generateResponse(String userInput, String currentCode, Puzzle.Type puzzleType) {
-        // First, let the AI analyze the request
         String requestType = analyzeRequest(userInput);
         
         if ("BROAD".equals(requestType) || "SOLUTION".equals(requestType)) {
@@ -137,8 +135,8 @@ public class AiService {
         ChatCompletions completions = client.getChatCompletions(
             deploymentName,
             new ChatCompletionsOptions(messages)
-                .setTemperature(0.0) // Use 0 temperature for consistent analysis
-                .setMaxTokens(10)    // We only need a single word response
+                .setTemperature(0.0)
+                .setMaxTokens(10)
         );
 
         if (completions != null && 
@@ -147,41 +145,33 @@ public class AiService {
             return completions.getChoices().get(0).getMessage().getContent().trim().toUpperCase();
         }
 
-        // Default to treating as too broad if we can't analyze
         return "BROAD";
     }
 
     private String[] splitResponse(String content) {
-        // Default to treating all content as text
         String text = content;
         String code = "";
         
-        // Check for code blocks with triple backticks
         int codeStart = content.indexOf("```");
         if (codeStart != -1) {
             int codeEnd = content.indexOf("```", codeStart + 3);
             if (codeEnd != -1) {
                 text = content.substring(0, codeStart).trim();
                 
-                // Get language identifier if present (e.g., ```python)
                 String codeContent = content.substring(codeStart + 3, codeEnd);
                 int newlinePos = codeContent.indexOf('\n');
                 
                 if (newlinePos != -1) {
-                    // Remove language identifier if present
                     code = codeContent.substring(newlinePos + 1).trim();
                 } else {
                     code = codeContent.trim();
                 }
                 
-                // Check if there's text after the code block and append it to text
                 if (codeEnd + 3 < content.length()) {
                     text += " " + content.substring(codeEnd + 3).trim();
                 }
             }
         } else {
-            // Alternative detection: Look for patterns that might indicate code without backticks
-            // Common programming language patterns
             String[] codeIndicators = {
                 "public class", "def ", "function ", "import ", "package ", "var ", "const ", 
                 "let ", "#include", "using namespace", "public static void main"
@@ -189,7 +179,7 @@ public class AiService {
             
             for (String indicator : codeIndicators) {
                 int indicatorPos = content.indexOf(indicator);
-                if (indicatorPos > 20) {  // Avoid detecting indicators that are part of explanation text
+                if (indicatorPos > 20) {
                     text = content.substring(0, indicatorPos).trim();
                     code = content.substring(indicatorPos).trim();
                     break;
@@ -203,28 +193,25 @@ public class AiService {
     public String getCodeEvaluation(String evaluationPrompt, String code, Puzzle.Type puzzleType) {
         List<ChatRequestMessage> messages = new ArrayList<>();
         
-        // System message instructing the AI to evaluate code
         messages.add(new ChatRequestSystemMessage(
             "You are an AI code evaluator. Analyze the provided code solution for the given puzzle. " +
             "Evaluate correctness (how well it solves the problem) and quality (structure, efficiency, best practices). " +
             "Provide exact numerical scores from 0-100 for both aspects in JSON format."
         ));
         
-        // Add the evaluation prompt that contains puzzle details
         messages.add(new ChatRequestUserMessage(evaluationPrompt + "\n\n```\n" + code + "\n```"));
 
         ChatCompletions completions = client.getChatCompletions(
             deploymentName,
             new ChatCompletionsOptions(messages)
-                .setTemperature(0.1) // Low temperature for consistent evaluation
-                .setMaxTokens(200)   // We just need the evaluation scores
+                .setTemperature(0.1)
+                .setMaxTokens(200)
         );
 
         if (completions != null && completions.getChoices() != null && !completions.getChoices().isEmpty()) {
             return completions.getChoices().get(0).getMessage().getContent();
         }
 
-        // Return a default response if the AI evaluation fails
         return "{\"correctness\": 70, \"quality\": 70}";
     }
 

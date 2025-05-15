@@ -1,6 +1,5 @@
 package info.sup.proj.backend.model;
 
-// Remove Lombok dependency for this class to avoid annotation processing issues
 public class ChatMessage {
     private String type;
     private String content;
@@ -8,11 +7,9 @@ public class ChatMessage {
     private String userPicture;
     private Long timestamp;
     
-    // Default constructor needed for Jackson deserialization
     public ChatMessage() {
     }
     
-    // Constructor with all fields
     public ChatMessage(String type, String content, String username, String userPicture, Long timestamp) {
         this.type = type;
         this.content = content;
@@ -21,7 +18,6 @@ public class ChatMessage {
         this.timestamp = timestamp;
     }
     
-    // Getters and setters
     public String getType() {
         return type;
     }

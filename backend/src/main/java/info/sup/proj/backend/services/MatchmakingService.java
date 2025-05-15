@@ -69,7 +69,6 @@ public class MatchmakingService {
 
         playerChallenges.put(targetId, challengerId);
 
-        // Send challenge notification to target player
         User challengerUser = userRepository.findById(Long.parseLong(challengerId))
                 .orElseThrow(() -> new IllegalArgumentException("Challenger not found"));
 
@@ -100,11 +99,9 @@ public class MatchmakingService {
             throw new IllegalStateException("One or both players not in lobby");
         }
 
-        // Create game and notify players
         try {
             createAndStartGame(challenger, target);
 
-            // Clean up
             playerChallenges.remove(targetId);
             removePlayerFromLobby(challengerId);
             removePlayerFromLobby(targetId);
@@ -120,7 +117,6 @@ public class MatchmakingService {
             throw new IllegalStateException("No active challenge found");
         }
 
-        // Notify challenger
         Map<String, Object> rejectInfo = new HashMap<>();
         rejectInfo.put("type", "CHALLENGE_REJECTED");
         rejectInfo.put("content", "Challenge was rejected");
@@ -144,9 +140,8 @@ public class MatchmakingService {
         int searchingElo = searchingUser.getElo();
         int eloRange = preferences != null && preferences.get("eloRange") != null 
             ? (Integer) preferences.get("eloRange") 
-            : 1000; // Increased default ELO range
+            : 1000;
 
-        // Find a suitable opponent
         Optional<Player> opponent = searchingPlayers.entrySet().stream()
             .filter(entry -> !entry.getKey().equals(userId))
             .map(Map.Entry::getValue)
@@ -166,7 +161,6 @@ public class MatchmakingService {
             try {
                 createAndStartGame(searchingPlayer, opponentPlayer);
 
-                // Clean up
                 stopSearchingForOpponent(userId);
                 stopSearchingForOpponent(opponentPlayer.getId());
                 removePlayerFromLobby(userId);
@@ -179,10 +173,8 @@ public class MatchmakingService {
     }
 
     private void createAndStartGame(Player player1, Player player2) {
-        // Create the game
         var game = gameService.createGame(player1, player2);
 
-        // Notify both players
         for (Player player : List.of(player1, player2)) {
             Player opponent = player.getId().equals(player1.getId()) ? player2 : player1;
             User opponentUser = userRepository.findById(Long.parseLong(opponent.getId()))
@@ -213,7 +205,6 @@ public class MatchmakingService {
     }
 
     private void broadcastLobbyUpdate() {
-        // Filter out searching players from available players list
         List<Map<String, Object>> lobbyPlayers = availablePlayers.values().stream()
             .filter(player -> !searchingPlayers.containsKey(player.getId()))
             .map(player -> {
