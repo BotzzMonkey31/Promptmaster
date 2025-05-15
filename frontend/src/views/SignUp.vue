@@ -265,7 +265,6 @@ const handleSubmit = async () => {
     const response = await apiClient.post('/users/create', userForm.value)
 
     if (response.status === 201) {
-      console.log('User created successfully:', response.data)
       Cookies.set('user', JSON.stringify(response.data), { expires: 7 })
       router.push('/home')
     } else {

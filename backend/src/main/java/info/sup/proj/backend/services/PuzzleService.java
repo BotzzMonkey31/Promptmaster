@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class PuzzleService {
@@ -45,6 +46,12 @@ public class PuzzleService {
 
     public Optional<Puzzle> getPuzzleById(Integer id) {
         return puzzleRepository.findById(id);
+    }
+    
+    public List<Puzzle> getPuzzlesByType(Puzzle.Type type) {
+        return puzzleRepository.findAll().stream()
+                .filter(puzzle -> puzzle.getType() == type)
+                .collect(Collectors.toList());
     }
 
     public Puzzle savePuzzle(Puzzle puzzle) {

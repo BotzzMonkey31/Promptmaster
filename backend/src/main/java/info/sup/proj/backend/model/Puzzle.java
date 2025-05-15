@@ -19,6 +19,33 @@ public class Puzzle {
     
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    private Type type;
+
+    @Enumerated(EnumType.STRING)
+    private Difficulty difficulty;
+
+    public Puzzle() {
+    }
+
+    public Puzzle(String name, Difficulty difficulty, Type type, String description) {
+        this.name = name;
+        this.description = description;
+        this.type = type;
+        this.difficulty = difficulty;
+    }
+
+    public enum Type {
+        BY_PASS, Faulty, Multi_Step
+    }
+
+    public enum Difficulty {
+        Easy, Medium, Hard
+    }
+
     public Integer getId() {
         return this.id;
     }
@@ -59,30 +86,4 @@ public class Puzzle {
         this.difficulty = difficulty;
     }
 
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
-    @Enumerated(EnumType.STRING)
-    private Type type;
-
-    @Enumerated(EnumType.STRING)
-    private Difficulty difficulty;
-
-    public Puzzle() {
-    }
-
-    public Puzzle(String name, Difficulty difficulty, Type type, String description) {
-        this.name = name;
-        this.description = description;
-        this.type = type;
-        this.difficulty = difficulty;
-    }
-
-    public enum Type {
-        BY_PASS, Faulty, Multi_Step
-    }
-
-    public enum Difficulty {
-        Easy, Medium, Hard
-    }
 }

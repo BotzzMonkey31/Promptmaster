@@ -72,6 +72,7 @@
 
 <script lang="ts">
 import Cookies from 'js-cookie'
+import { Client } from '@stomp/stompjs'
 
 interface ChatMessage {
   username: string
@@ -89,9 +90,12 @@ export default {
       messages: [] as ChatMessage[],
       newMessage: '',
       unreadCount: 0,
-      socket: null as WebSocket | null,
+      stompClient: null as Client | null,
       currentUser: {} as { name: string; picture: string },
       defaultAvatar: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+      isConnecting: false,
+      connectionAttempts: 0,
+      maxReconnectAttempts: 5,
     }
   },
   methods: {
@@ -113,65 +117,161 @@ export default {
       }
     },
     async sendMessage() {
-      if (!this.newMessage.trim() || !this.socket) return
-      const userCookie = Cookies.get('user')
-      if (!userCookie) return
-      this.currentUser = JSON.parse(userCookie)
+      if (!this.newMessage.trim()) return;
+
+      // Check connection state and try to reconnect if needed
+      if (!this.stompClient?.connected) {
+        console.log('STOMP client not connected, attempting to reconnect...');
+        await this.initStompClient();
+        // Wait a bit for the connection to establish
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // Verify client is now connected
+      if (!this.stompClient?.connected) {
+        console.error('Failed to establish STOMP connection');
+        return;
+      }
+
+      const userCookie = Cookies.get('user');
+      if (!userCookie) return;
+
+      this.currentUser = JSON.parse(userCookie);
       const message = {
         type: 'CHAT',
         content: this.newMessage.trim(),
         username: this.currentUser.name,
         userPicture: this.currentUser.picture,
-      }
+        timestamp: new Date().getTime()
+      };
 
-      this.socket.send(JSON.stringify(message))
-
-      this.newMessage = ''
-
-      this.$nextTick(() => {
-        const container = this.$refs.messagesContainer as HTMLElement
-        container.scrollTop = container.scrollHeight
-      })
-    },
-    initWebSocket() {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws');
-      this.socket = new WebSocket(`${baseUrl}/chat`);
-
-      this.socket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-
-        const isSelf = message.username === this.currentUser.name;
-
-        this.messages.push({
-          username: message.username,
-          userPicture: message.userPicture,
-          content: message.content,
-          timestamp: new Date(),
-          isSelf: isSelf,
+      try {
+        this.stompClient.publish({
+          destination: '/app/chat',
+          body: JSON.stringify(message)
         });
 
-        if (!this.isOpen && !isSelf) {
-          this.unreadCount++;
-        }
+        this.newMessage = '';
 
         this.$nextTick(() => {
           const container = this.$refs.messagesContainer as HTMLElement;
           container.scrollTop = container.scrollHeight;
         });
-      };
+      } catch (error) {
+        console.error('Error sending message:', error);
+      }
+    },
+    initStompClient() {
+      return new Promise((resolve) => {
+        // Don't try to reconnect if we're already connecting
+        if (this.isConnecting) {
+          resolve(false);
+          return;
+        }
 
-      this.socket.onclose = () => {
-        console.log('WebSocket connection closed');
-        setTimeout(() => this.initWebSocket(), 5000);
-      };
+        // Close existing client if it exists
+        if (this.stompClient) {
+          this.stompClient.deactivate();
+          this.stompClient = null;
+        }
+
+        this.isConnecting = true;
+
+        try {
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+          const wsUrl = baseUrl.replace(/^http/, 'ws');
+
+          this.stompClient = new Client({
+            brokerURL: `${wsUrl}/chat`,
+            debug: function(str) {
+              console.log('STOMP: ' + str);
+            },
+            reconnectDelay: 5000,
+            heartbeatIncoming: 4000,
+            heartbeatOutgoing: 4000,
+            onConnect: () => {
+              console.log('STOMP connection established');
+              this.isConnecting = false;
+              this.connectionAttempts = 0;
+
+              // Subscribe to chat messages
+              this.stompClient?.subscribe('/topic/chat', (message) => {
+                try {
+                  const chatMessage = JSON.parse(message.body);
+                  const isSelf = chatMessage.username === this.currentUser.name;
+
+                  this.messages.push({
+                    username: chatMessage.username,
+                    userPicture: chatMessage.userPicture,
+                    content: chatMessage.content,
+                    timestamp: new Date(chatMessage.timestamp),
+                    isSelf: isSelf,
+                  });
+
+                  if (!this.isOpen && !isSelf) {
+                    this.unreadCount++;
+                  }
+
+                  this.$nextTick(() => {
+                    const container = this.$refs.messagesContainer as HTMLElement;
+                    if (container) {
+                      container.scrollTop = container.scrollHeight;
+                    }
+                  });
+                } catch (e) {
+                  console.error('Error processing STOMP message:', e);
+                }
+              });
+
+              resolve(true);
+            },
+            onStompError: (frame) => {
+              console.error('STOMP error:', frame);
+              this.isConnecting = false;
+              resolve(false);
+            },
+            onWebSocketClose: () => {
+              this.isConnecting = false;
+              console.log('WebSocket connection closed');
+
+              // Attempt to reconnect with increasing delay but don't exceed max attempts
+              if (this.connectionAttempts < this.maxReconnectAttempts) {
+                this.connectionAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, this.connectionAttempts), 30000);
+                console.log(`Attempting to reconnect in ${delay/1000}s (attempt ${this.connectionAttempts})`);
+                setTimeout(() => this.initStompClient(), delay);
+              } else {
+                console.error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts`);
+              }
+              resolve(false);
+            }
+          });
+
+          // Load user information at initialization
+          const userCookie = Cookies.get('user');
+          if (userCookie) {
+            try {
+              this.currentUser = JSON.parse(userCookie);
+            } catch (e) {
+              console.error('Error parsing user cookie:', e);
+            }
+          }
+
+          this.stompClient.activate();
+        } catch (e) {
+          console.error('Error initializing STOMP client:', e);
+          this.isConnecting = false;
+          resolve(false);
+        }
+      });
     },
   },
   mounted() {
-    this.initWebSocket()
+    this.initStompClient()
   },
   beforeUnmount() {
-    if (this.socket) {
-      this.socket.close()
+    if (this.stompClient) {
+      this.stompClient.deactivate()
     }
   },
 }

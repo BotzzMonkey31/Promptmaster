@@ -1,9 +1,9 @@
 package info.sup.proj.backend.repositories;
 
-import info.sup.proj.backend.model.Puzzle;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import info.sup.proj.backend.model.Puzzle;
+import java.util.List;
 
-@Repository
 public interface PuzzleRepository extends JpaRepository<Puzzle, Integer> {
+    List<Puzzle> findByType(Puzzle.Type type);
 }

@@ -78,11 +78,16 @@ public class AiService {
         """;
 
     public AiService(AzureOpenAiConfig config) {
-        this.client = new OpenAIClientBuilder()
+        this.client = createOpenAIClient(config);
+        this.deploymentName = config.getDeploymentName();
+    }
+    
+    // Added this protected method to make the service more testable
+    protected OpenAIClient createOpenAIClient(AzureOpenAiConfig config) {
+        return new OpenAIClientBuilder()
             .endpoint(config.getEndpoint())
             .credential(new AzureKeyCredential(config.getApiKey()))
             .buildClient();
-        this.deploymentName = config.getDeploymentName();
     }
 
     public ChatResponse generateResponse(String userInput, String currentCode, Puzzle.Type puzzleType) {

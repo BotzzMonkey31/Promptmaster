@@ -174,7 +174,6 @@ export default defineComponent({
     },
     async loadSolutions(puzzleId: string) {
       try {
-        console.log(`Fetching solutions for puzzle ID: ${puzzleId}`)
         this.solutions = [
           {
             author: 'Alice',

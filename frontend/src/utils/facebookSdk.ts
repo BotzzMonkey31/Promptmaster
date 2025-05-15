@@ -18,7 +18,6 @@ export const initializeFacebookSdk = (): Promise<void> => {
 
       window.FB.AppEvents.logPageView()
       isFBInitialized = true
-      console.log('Facebook SDK initialized')
       resolve()
     }
 

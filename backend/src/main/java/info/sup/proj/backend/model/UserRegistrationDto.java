@@ -32,6 +32,34 @@ public class UserRegistrationDto {
         return rank;
     }
 
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public void setCountry(String country) {
+        this.country = country;
+    }
+
+    public void setPicture(String picture) {
+        this.picture = picture;
+    }
+
+    public void setRank(Rank rank) {
+        this.rank = rank;
+    }
+
+    public void setElo(Integer elo) {
+        this.elo = elo;
+    }
+
     private String email;
     private String name;
     private String username;

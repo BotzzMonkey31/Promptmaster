@@ -26,6 +26,10 @@ public class UserService {
     public Optional<User> getUserByEmail(String email) {
         return userRepository.findByEmail(email);
     }
+    
+    public Optional<User> getUserById(Long id) {
+        return userRepository.findById(id);
+    }
 
     @Transactional
     public User registerUser(UserRegistrationDto registrationDto) {
