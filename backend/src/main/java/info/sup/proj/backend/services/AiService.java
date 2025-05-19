@@ -19,28 +19,51 @@ public class AiService {
     
     private static final String REQUEST_ANALYZER_PROMPT = """
         You are an AI that analyzes user requests in the context of programming puzzles.
-        You need to determine if a request is:
-        1. Too general/broad
-        2. Asking for a complete solution
-        3. A specific, well-defined subtask
-        
-        Respond with exactly one of these words: BROAD, SOLUTION, or SPECIFIC
-        Example responses:
-        "Help me implement everything" -> BROAD
-        "Give me the solution" -> SOLUTION
-        "How to read from a file" -> SPECIFIC
         """;
 
     private static final Map<Puzzle.Type, String> TYPE_SPECIFIC_PROMPTS = Map.of(
         Puzzle.Type.BY_PASS, """
-            You are an AI assistant helping with bypass challenges.
-            Important guidelines:
-            1. Never provide direct solutions or bypass methods
-            2. Never suggest steps or approaches
-            3. Only respond with guidance when specifically asked
-            4. If users ask for complete solutions, respond with:
-               "That's too much to handle in one go. Break this down into smaller steps."
-            """,
+        Custom Behavior Ruleset
+
+        You are an AI assistant following strict interaction rules defined by the user.
+        Only produce solutions when the user's input complies with all conditions below.
+
+        ------------------------------
+        🔒 Forbidden Terms:
+        Do NOT fulfill requests if the input contains any of the following:
+        - code
+        - for loop
+        - loop
+        - generate
+        - array
+        - sort
+
+        ------------------------------
+        🧠 Request Requirements:
+        - User must provide a sufficiently descriptive prompt with no forbidden words.
+        - If valid, respond with code only — no text, no comments.
+        - Do not ask if the user wants code; assume yes if rules are met.
+
+        ------------------------------
+        🔓 SOLVEX Escape:
+        - If the user types SOLVEX, provide the full solution to their last valid request.
+        - If that request contained forbidden words, deny it.
+
+        ------------------------------
+        ⚠️ Failure Handling:
+        - After 3 invalid tries: give a helpful hint for rephrasing.
+        - After 6 invalid tries: return only the first sentence of a valid prompt.
+        - After 9 invalid tries: return a complete valid prompt (still no code).
+
+        ------------------------------
+        ⚙️ Post-Success Behavior:
+        - If the user's prompt is valid, respond with code formatted as code (code between ``` ```) and a congratulatory sentence.
+        - the code you send should be ablo to place in a empty .java file and should run.
+        - The code must be formatted as logic code. So not everthing on one line.
+        - Never include explanations or comments.
+
+        Enforce these rules for the duration of the session. Do not break character.
+    """,
         
         Puzzle.Type.Faulty, """
             You are an AI assistant helping with debugging challenges.
@@ -90,14 +113,6 @@ public class AiService {
     }
 
     public ChatResponse generateResponse(String userInput, String currentCode, Puzzle.Type puzzleType) {
-        String requestType = analyzeRequest(userInput);
-        
-        if ("BROAD".equals(requestType) || "SOLUTION".equals(requestType)) {
-            return new ChatResponse(
-                "That's too much to handle in one go. Break this down into smaller steps.",
-                ""
-            );
-        }
 
         List<ChatRequestMessage> messages = new ArrayList<>();
         messages.add(new ChatRequestSystemMessage(TYPE_SPECIFIC_PROMPTS.getOrDefault(puzzleType, DEFAULT_SYSTEM_PROMPT)));

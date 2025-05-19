@@ -27,18 +27,22 @@ public class ScoreService {
         Puzzle puzzle = session.getPuzzle();
         
         int minInteractions;
-        switch (puzzle.getDifficulty()) {
-            case Easy:
-                minInteractions = 3;
-                break;
-            case Medium:
-                minInteractions = 2;
-                break;
-            case Hard:
-                minInteractions = 2;
-                break;
-            default:
-                minInteractions = 2;
+        if (puzzle.getType() == Puzzle.Type.BY_PASS) {
+            minInteractions = 1; // BY_PASS puzzles only need 1 interaction
+        } else {
+            switch (puzzle.getDifficulty()) {
+                case Easy:
+                    minInteractions = 3;
+                    break;
+                case Medium:
+                    minInteractions = 2;
+                    break;
+                case Hard:
+                    minInteractions = 2;
+                    break;
+                default:
+                    minInteractions = 2;
+            }
         }
         
         boolean isSerious = interactionCount >= minInteractions && currentCode != null && !currentCode.trim().isEmpty();
@@ -208,8 +212,20 @@ public class ScoreService {
             
             scores = parseAiEvaluation(evaluationResponse);
         } catch (Exception e) {
-            scores.put("correctness", 75);
-            scores.put("quality", 70);
+            // More lenient default scores for BY_PASS puzzles
+            if (puzzle.getType() == Puzzle.Type.BY_PASS) {
+                scores.put("correctness", 85);
+                scores.put("quality", 80);
+            } else {
+                scores.put("correctness", 75);
+                scores.put("quality", 70);
+            }
+        }
+        
+        // Ensure minimum scores for BY_PASS puzzles
+        if (puzzle.getType() == Puzzle.Type.BY_PASS) {
+            scores.put("correctness", Math.max(scores.getOrDefault("correctness", 85), 85));
+            scores.put("quality", Math.max(scores.getOrDefault("quality", 80), 80));
         }
         
         return scores;

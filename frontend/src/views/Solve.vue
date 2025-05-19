@@ -25,9 +25,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import apiClient from '../services/api';
 import MultiStepSolve from './MultiStepSolve.vue';
+import BypassSolve from './BypassSolve.vue';
 import Cookies from 'js-cookie';
 // import FaultySolve from './FaultySolve.vue';
-// import BypassSolve from './BypassSolve.vue';
+
 
 const route = useRoute();
 const puzzle = ref<any>(null);
@@ -158,10 +159,10 @@ const currentComponent = computed(() => {
   switch (puzzle.value.type) {
     case 'Multi_Step':
       return MultiStepSolve;
+    case 'BY_PASS':
+      return BypassSolve;
     // case 'Faulty':
     //   return FaultySolve;
-    // case 'BY_PASS':
-    //   return BypassSolve;
     default:
       return null;
   }
