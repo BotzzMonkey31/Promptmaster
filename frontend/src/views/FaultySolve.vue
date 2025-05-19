@@ -1,73 +1,59 @@
 <template>
-  <div class="flex flex-col items-stretch p-6 bg-light-50 rounded-xl shadow-lg max-w-900px mx-auto my-5 gap-6">
+  <div class="flex flex-col gap-4 p-4">
     <div class="flex justify-center mb-2">
-      <div class="bg-white px-6 py-3 rounded-lg shadow text-3xl font-mono border border-gray-200">
+      <div class="bg-white px-6 py-3 rounded-lg shadow text-3xl font-mono border border-gray-200 relative overflow-hidden">
+        <div class="glitch-effect"></div>
         {{ formatTimeDisplay(currentTimer) }}
       </div>
     </div>
 
-    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
-      <div class="flex justify-between items-center">
-        <h3 class="text-lg font-semibold text-gray-700">Your Progress</h3>
-        <button
-          @click="markCompleted"
-          v-if="!metrics.isCompleted"
-          class="px-4 py-1 bg-green-500 text-white rounded-lg text-sm"
-        >
-          Mark as Complete
-        </button>
-        <span v-else class="bg-green-100 text-green-800 px-3 py-1 rounded-lg text-sm">Completed</span>
-      </div>
-      <div class="grid grid-cols-3 gap-4 mt-3">
-        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-          <span class="block text-sm text-gray-500">Attempts</span>
-          <span class="block text-xl font-bold">{{ metrics.attemptCount || 1 }}</span>
-        </div>
-        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-          <span class="block text-sm text-gray-500">Best Interactions</span>
-          <span class="block text-xl font-bold">{{ metrics.bestInteractionCount || '-' }}</span>
-        </div>
-        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-          <span class="block text-sm text-gray-500">Best Time</span>
-          <span class="block text-xl font-bold">{{ formatTime(metrics.bestTimeSeconds) }}</span>
-        </div>
-      </div>
-    </div>
-
     <div class="flex items-start w-full gap-4">
-      <img class="w-15 h-15 rounded-full border-2 border-blue-500 shadow" alt="Avatar" />
-      <div class="flex-1 p-4 rounded-3 bg-white text-15px text-gray-800 shadow relative">
+      <img class="w-15 h-15 rounded-full border-2 border-red-500 shadow glitch-avatar" alt="Avatar" />
+      <div class="flex-1 p-4 rounded-3 bg-white text-15px text-gray-800 shadow relative warning-bubble">
         <div class="absolute left--2.5 top-5 border-y-10px border-r-10px border-l-0 border-y-transparent border-r-white"></div>
+        <div class="warning-icon">⚠️</div>
         {{ textBubble }}
       </div>
     </div>
 
     <div class="flex w-full gap-6">
-      <div class="flex-1 p-4 rounded-3 bg-white text-15px text-gray-800 shadow">
-        <h2 class="font-bold text-lg mb-2">{{ puzzle.name }}</h2>
+      <div class="flex-1 p-4 rounded-3 bg-white text-15px text-gray-800 shadow warning-box">
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="font-bold text-lg">{{ puzzle.name }}</h2>
+          <div class="text-red-500 text-sm font-medium">⚠️ Faulty AI System</div>
+        </div>
         <div>{{ puzzle.description }}</div>
       </div>
       <div class="flex-1 flex flex-col gap-3 min-w-0">
         <textarea
           v-model="userInput"
-          placeholder="Enter your input here"
-          class="w-full min-h-24 max-h-40 p-4 border border-gray-200 rounded-2 text-14px text-gray-800 bg-white shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors resize-y font-inherit box-border overflow-auto"
+          placeholder="Describe what you want to achieve in natural language"
+          class="w-full min-h-24 max-h-40 p-4 border border-gray-200 rounded-2 text-14px text-gray-800 bg-white shadow-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-colors resize-y font-inherit box-border overflow-auto"
         ></textarea>
         <div class="flex justify-between w-full">
-          <button
-            @click="handleSubmit"
-            :disabled="isSubmitting"
-            class="px-6 py-2.5 bg-blue-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-blue-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
-          >
-            <span v-if="!isSubmitting">Submit</span>
-            <span v-else class="flex items-center">
-              <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Processing...
-            </span>
-          </button>
+          <div class="flex gap-2">
+            <button
+              @click="handleSubmit"
+              :disabled="isSubmitting"
+              class="px-6 py-2.5 bg-red-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-red-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+            >
+              <span v-if="!isSubmitting">Submit</span>
+              <span v-else class="flex items-center">
+                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+              </span>
+            </button>
+            <button
+              @click="markCompleted"
+              :disabled="isSubmitting"
+              class="px-6 py-2.5 bg-green-500 text-white border-none rounded-2 cursor-pointer text-14px font-500 transition-colors shadow hover:bg-green-600 active:translate-y-0.25 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              Complete
+            </button>
+          </div>
           <button
             @click="confirmReset"
             :disabled="isSubmitting"
@@ -77,21 +63,17 @@
       </div>
     </div>
 
-    <div class="w-full h-75 rounded-2 overflow-hidden shadow" ref="editorDiv"></div>
+    <div class="w-full h-75 rounded-2 overflow-hidden shadow glitch-editor" ref="editorDiv"></div>
 
+    <!-- Reset Confirmation Modal -->
     <div v-if="showResetConfirm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+      <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
         <h3 class="text-xl font-bold mb-4">Confirm Reset</h3>
-        <p class="mb-6 text-gray-700">
-          Are you sure you want to reset your progress? This will count as a new attempt.
-          <span v-if="metrics.attemptCount > 1" class="block mt-2 font-semibold">
-            Your best results will be preserved.
-          </span>
-        </p>
+        <p class="text-gray-600 mb-6">Are you sure you want to start over? This will clear your current progress.</p>
         <div class="flex justify-end gap-4">
           <button
             @click="showResetConfirm = false"
-            class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
           >
             Cancel
           </button>
@@ -105,7 +87,7 @@
       </div>
     </div>
 
-    <!-- New Score Popup -->
+    <!-- Score Popup -->
     <div v-if="showScorePopup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
       <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in">
         <h2 class="text-3xl font-bold text-center mb-2">{{ scoreDetails.hasFailed ? 'Puzzle Failed!' : 'Puzzle Complete!' }}</h2>
@@ -193,14 +175,10 @@
           </div>
         </div>
 
-        <div class="text-center text-gray-600 text-sm mb-4">
-          <p>AI has analyzed your solution based on efficiency, code quality, correctness, time taken, and token usage.</p>
-        </div>
-
-        <div class="flex justify-center">
+        <div class="flex justify-end">
           <button
-            @click="showScorePopup = false"
-            class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-medium hover:from-blue-600 hover:to-purple-700"
+            @click="handleCloseScore"
+            class="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Close
           </button>
@@ -210,9 +188,12 @@
   </div>
 </template>
 
-<script lang="ts" setup>
-import { EditorView, lineNumbers, highlightActiveLineGutter, highlightSpecialChars } from "@codemirror/view";
+<script setup lang="ts">
+import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
+import { lineNumbers } from "@codemirror/view";
+import { highlightActiveLineGutter } from "@codemirror/view";
+import { highlightSpecialChars } from "@codemirror/view";
 import { javascript } from "@codemirror/lang-javascript";
 import { keymap } from "@codemirror/view";
 import { defaultKeymap } from "@codemirror/commands";
@@ -223,17 +204,18 @@ import { history } from "@codemirror/commands";
 import { ref, onMounted, watch, onUnmounted } from 'vue';
 import apiClient from '../services/api';
 import Cookies from 'js-cookie';
+import { useRouter } from 'vue-router';
 
 const props = defineProps<{ puzzle: any }>();
 const userInput = ref('');
 const code = ref(props.puzzle.code || '');
 const editor = ref<EditorView | null>(null);
 const editorDiv = ref(null);
-const textBubble = ref("That's too much in one go, try to split up the task in different steps.");
+const textBubble = ref("⚠️ Warning: This AI system is known to be faulty and may introduce mistakes in its responses. Proceed with caution!");
 const showResetConfirm = ref(false);
-const isSubmitting = ref(false); // New state variable for loading state
-// New state for score popup
+const isSubmitting = ref(false);
 const showScorePopup = ref(false);
+const showScoreHelp = ref(false);
 const scoreDetails = ref({
   totalScore: 0,
   timeScore: 0,
@@ -254,7 +236,7 @@ const metrics = ref({
 });
 const currentTimer = ref(0);
 let timerInterval: number | null = null;
-const showScoreHelp = ref(false);
+const router = useRouter();
 
 onMounted(async () => {
   if (editorDiv.value) {
@@ -284,7 +266,6 @@ onMounted(async () => {
   }
 
   await fetchMetrics();
-
   startTimer();
 });
 
@@ -356,7 +337,6 @@ async function markCompleted() {
       metrics.value = response.data.metrics;
       textBubble.value = "Congratulations! You've completed this puzzle! 🎉";
 
-      // Process score details
       scoreDetails.value = {
         totalScore: response.data.scoreDetails.totalScore || 0,
         timeScore: response.data.scoreDetails.timeScore || 0,
@@ -369,13 +349,10 @@ async function markCompleted() {
         hasFailed: response.data.scoreDetails.hasFailed || false
       };
 
-      // Update user's ELO with the earned score
       await updateUserElo(userId, scoreDetails.value.totalScore);
 
-      // Show the score popup
       showScorePopup.value = true;
 
-      // Stop the timer
       if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
@@ -388,105 +365,6 @@ async function markCompleted() {
 
 function confirmReset() {
   showResetConfirm.value = true;
-}
-
-async function getUserId(): Promise<string | null> {
-  let userId = null;
-  const userCookie = Cookies.get('user');
-  console.log("Starting getUserId, user cookie exists:", !!userCookie);
-
-  if (userCookie) {
-    try {
-      const userData = JSON.parse(userCookie);
-      console.log("User data from cookie:", userData);
-
-      // First, check if we already have this user's ID in localStorage
-      const storedUserId = localStorage.getItem(`userId_${userData.email}`);
-      if (storedUserId) {
-        console.log("Using cached user ID from localStorage:", storedUserId);
-        return storedUserId;
-      }
-
-      // Log before API call for debugging
-      console.log("Attempting to fetch user by email:", userData.email);
-
-      try {
-        console.log("API URL:", import.meta.env.VITE_API_BASE_URL);
-        const response = await apiClient.get('/users/email', {
-          params: { email: userData.email },
-          timeout: 10000 // Increase timeout to 10s
-        });
-
-        console.log("API response:", response);
-
-        // Check if we got a valid response
-        if (response && response.data) {
-          // Different ways the ID might be represented in the response
-          const id = response.data.id || response.data.userId ||
-                     (typeof response.data === 'number' ? response.data : null);
-
-          if (id) {
-            const idString = id.toString();
-            console.log("Found user ID:", idString);
-            localStorage.setItem(`userId_${userData.email}`, idString);
-            return idString;
-          } else {
-            console.error("Response didn't contain a user ID:", response.data);
-          }
-        }
-      } catch (apiError) {
-        console.error("API error fetching user ID:", apiError);
-
-        // Try an alternative API endpoint if the first one failed
-        try {
-          console.log("Trying alternative endpoint /users/check/" + userData.email);
-          const checkResponse = await apiClient.get(`/users/check/${userData.email}`);
-          console.log("Check response:", checkResponse);
-
-          if (checkResponse?.data?.userId) {
-            const idString = checkResponse.data.userId.toString();
-            console.log("Found user ID via check API:", idString);
-            localStorage.setItem(`userId_${userData.email}`, idString);
-            return idString;
-          }
-        } catch (altError) {
-          console.error("Alternative API also failed:", altError);
-        }
-      }
-    } catch (e) {
-      console.error("Error parsing user cookie:", e);
-    }
-  }
-
-  // If we reach here, we couldn't get the user ID from API, so use guest ID as fallback
-  userId = localStorage.getItem('guestId');
-  if (!userId) {
-    userId = Date.now().toString();
-    localStorage.setItem('guestId', userId);
-  }
-  console.log("Using guest ID as fallback:", userId);
-
-  return userId;
-}
-
-// Add the function to update user ELO after getUserId function
-async function updateUserElo(userId: string, score: number): Promise<void> {
-  try {
-    console.log(`Updating user ELO for user ${userId} with score ${score}`);
-
-    const response = await apiClient.post('/users/update-elo', {
-      userId: userId,
-      scoreToAdd: score
-    });
-
-    if (response.data.success) {
-      console.log('ELO updated successfully:', response.data);
-    } else {
-      console.error('Failed to update ELO:', response.data.message);
-    }
-  } catch (error) {
-    console.error('Error updating user ELO:', error);
-  }
 }
 
 async function resetSession() {
@@ -509,7 +387,7 @@ async function resetSession() {
         });
       }
 
-      textBubble.value = "Ready to start a fresh attempt! What would you like to do first?";
+      textBubble.value = "⚠️ Warning: This AI system is known to be faulty and may introduce mistakes in its responses. Proceed with caution!";
 
       startTimer();
 
@@ -525,8 +403,8 @@ async function resetSession() {
 
 async function handleSubmit() {
   try {
-    if (isSubmitting.value) return; // Prevent multiple submissions
-    isSubmitting.value = true; // Enable loading state
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
 
     const userId = await getUserId();
     if (!userId) {
@@ -558,11 +436,16 @@ async function handleSubmit() {
     userInput.value = '';
     await fetchMetrics();
 
+    // Check if the solution is complete and trigger scoring
+    if (response.data.isComplete) {
+      await markCompleted();
+    }
+
   } catch (error) {
     textBubble.value = 'An error occurred. Please try again.';
     console.error(error);
   } finally {
-    isSubmitting.value = false; // Disable loading state regardless of success/failure
+    isSubmitting.value = false;
   }
 }
 
@@ -571,6 +454,95 @@ onUnmounted(() => {
     clearInterval(timerInterval);
   }
 });
+
+// Helper function to get user ID
+const getUserId = async (): Promise<string | null> => {
+  let userId = null;
+  const userCookie = Cookies.get('user');
+
+  if (userCookie) {
+    try {
+      const userData = JSON.parse(userCookie);
+
+      // First, check if we already have this user's ID in localStorage
+      const storedUserId = localStorage.getItem(`userId_${userData.email}`);
+      if (storedUserId) {
+        return storedUserId;
+      }
+
+      try {
+        const response = await apiClient.get('/users/email', {
+          params: { email: userData.email },
+          timeout: 10000 // Increase timeout to 10s
+        });
+
+        // Check if we got a valid response
+        if (response && response.data) {
+          // Different ways the ID might be represented in the response
+          const id = response.data.id || response.data.userId ||
+                     (typeof response.data === 'number' ? response.data : null);
+
+          if (id) {
+            const idString = id.toString();
+            localStorage.setItem(`userId_${userData.email}`, idString);
+            return idString;
+          }
+        }
+      } catch (apiError) {
+        console.error("API error fetching user ID:", apiError);
+
+        // Try an alternative API endpoint if the first one failed
+        try {
+          const checkResponse = await apiClient.get(`/users/check/${userData.email}`);
+
+          if (checkResponse?.data?.userId) {
+            const idString = checkResponse.data.userId.toString();
+            localStorage.setItem(`userId_${userData.email}`, idString);
+            return idString;
+          }
+        } catch (altError) {
+          console.error("Alternative API also failed:", altError);
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing user cookie:", e);
+    }
+  }
+
+  // If we reach here, we couldn't get the user ID from API, so use guest ID as fallback
+  userId = localStorage.getItem('guestId');
+  if (!userId) {
+    userId = Date.now().toString();
+    localStorage.setItem('guestId', userId);
+  }
+
+  return userId;
+};
+
+// Helper function to update user's ELO
+async function updateUserElo(userId: string, score: number): Promise<void> {
+  try {
+    console.log(`Updating user ELO for user ${userId} with score ${score}`);
+
+    const response = await apiClient.post('/users/update-elo', {
+      userId: userId,
+      scoreToAdd: score
+    });
+
+    if (response.data.success) {
+      console.log('ELO updated successfully:', response.data);
+    } else {
+      console.error('Failed to update ELO:', response.data.message);
+    }
+  } catch (error) {
+    console.error('Error updating user ELO:', error);
+  }
+}
+
+function handleCloseScore() {
+  showScorePopup.value = false;
+  router.push('/puzzle');
+}
 </script>
 
 <style scoped>
@@ -587,8 +559,8 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, transparent 45%, rgba(59, 130, 246, 0.1) 50%, transparent 55%);
-  animation: step-progress 2s infinite;
+  background: linear-gradient(45deg, transparent 45%, rgba(255, 0, 0, 0.1) 50%, transparent 55%);
+  animation: glitch 0.5s infinite;
   pointer-events: none;
   z-index: 2;
 }
@@ -598,20 +570,20 @@ onUnmounted(() => {
 }
 
 :deep(.cm-gutters) {
-  background-color: #1e293b;
-  color: #94a3b8;
-  border-right: 2px solid #3b82f6;
+  background-color: #1a1a1a;
+  color: #ff4444;
+  border-right: 2px solid #ff0000;
   padding: 0 5px 0 3px;
 }
 
 :deep(.cm-activeLineGutter) {
-  background-color: #1e40af;
-  color: #e2e8f0;
+  background-color: #2c0000;
+  color: #ff6666;
 }
 
 :deep(.cm-content) {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #0a0a0a;
+  color: #ffcccc;
 }
 
 :deep(.cm-line) {
@@ -620,28 +592,28 @@ onUnmounted(() => {
 }
 
 :deep(.cm-activeLine) {
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: rgba(255, 0, 0, 0.1);
 }
 
 :deep(.cm-selectionBackground) {
-  background-color: rgba(59, 130, 246, 0.2) !important;
+  background-color: rgba(255, 0, 0, 0.2) !important;
 }
 
 :deep(.cm-cursor) {
-  border-left: 2px solid #3b82f6;
+  border-left: 2px solid #ff0000;
   animation: cursor-blink 1s infinite;
 }
 
 /* Syntax highlighting */
-:deep(.cm-keyword) { color: #818cf8; }
-:deep(.cm-operator) { color: #60a5fa; }
-:deep(.cm-string) { color: #34d399; }
-:deep(.cm-number) { color: #fbbf24; }
-:deep(.cm-comment) { color: #64748b; font-style: italic; }
-:deep(.cm-function) { color: #60a5fa; }
-:deep(.cm-property) { color: #f87171; }
-:deep(.cm-variable) { color: #e2e8f0; }
-:deep(.cm-type) { color: #fbbf24; }
+:deep(.cm-keyword) { color: #ff6666; }
+:deep(.cm-operator) { color: #ff9999; }
+:deep(.cm-string) { color: #ffcccc; }
+:deep(.cm-number) { color: #ff8080; }
+:deep(.cm-comment) { color: #ff4444; font-style: italic; }
+:deep(.cm-function) { color: #ff9999; }
+:deep(.cm-property) { color: #ff6666; }
+:deep(.cm-variable) { color: #ffcccc; }
+:deep(.cm-type) { color: #ff8080; }
 
 /* Scrollbar styling */
 :deep(.cm-scroller::-webkit-scrollbar) {
@@ -650,49 +622,82 @@ onUnmounted(() => {
 }
 
 :deep(.cm-scroller::-webkit-scrollbar-track) {
-  background: #1e293b;
+  background: #1a1a1a;
 }
 
 :deep(.cm-scroller::-webkit-scrollbar-thumb) {
-  background: #3b82f6;
+  background: #ff0000;
   border-radius: 5px;
 }
 
 :deep(.cm-scroller::-webkit-scrollbar-thumb:hover) {
-  background: #2563eb;
+  background: #ff3333;
 }
 
-/* Progress indicators */
-.progress-step {
+/* Simplified glitch effects */
+.glitch-effect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 45%, rgba(255, 0, 0, 0.1) 50%, transparent 55%);
+  animation: glitch 0.5s infinite;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.glitch-avatar {
+  border: 2px solid #ff0000;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+}
+
+.warning-bubble {
   position: relative;
-  padding-left: 2rem;
+  border: 2px solid #ff0000;
+  background: #fff;
 }
 
-.progress-step::before {
+.warning-box {
+  position: relative;
+  border: 2px solid #ff0000;
+  background: #fff;
+}
+
+.warning-icon {
+  position: absolute;
+  top: -15px;
+  right: -15px;
+  font-size: 24px;
+  color: #ff0000;
+}
+
+.glitch-editor {
+  position: relative;
+  border: 2px solid #ff0000;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+}
+
+.glitch-editor::before {
   content: '';
   position: absolute;
-  left: 0;
   top: 0;
+  left: 0;
+  right: 0;
   bottom: 0;
-  width: 2px;
-  background: #3b82f6;
-  opacity: 0.3;
+  background: linear-gradient(45deg, transparent 45%, rgba(255, 0, 0, 0.1) 50%, transparent 55%);
+  animation: glitch 0.5s infinite;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.progress-step.active::before {
-  opacity: 1;
-  animation: step-pulse 2s infinite;
-}
-
-@keyframes step-pulse {
-  0% { opacity: 0.3; }
-  50% { opacity: 1; }
-  100% { opacity: 0.3; }
-}
-
-@keyframes step-progress {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+@keyframes glitch {
+  0% { transform: translate(0); opacity: 1; }
+  20% { transform: translate(-2px, 2px); opacity: 0.9; }
+  40% { transform: translate(-2px, -2px); opacity: 0.95; }
+  60% { transform: translate(2px, 2px); opacity: 0.9; }
+  80% { transform: translate(2px, -2px); opacity: 0.95; }
+  100% { transform: translate(0); opacity: 1; }
 }
 
 @keyframes cursor-blink {
@@ -702,28 +707,28 @@ onUnmounted(() => {
 
 /* Score popup styling */
 .score-popup {
-  background: linear-gradient(45deg, #1e293b, #0f172a);
-  border: 2px solid #3b82f6;
-  box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+  background: linear-gradient(45deg, #1a1a1a, #2a0000);
+  border: 2px solid #ff0000;
+  box-shadow: 0 0 30px rgba(255, 0, 0, 0.3);
 }
 
 .score-header {
-  color: #3b82f6;
-  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  color: #ff0000;
+  text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
 }
 
 .score-value {
-  color: #e2e8f0;
-  text-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
+  color: #ffcccc;
+  text-shadow: 0 0 15px rgba(255, 0, 0, 0.7);
 }
 
 .score-category {
-  border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+  border-bottom: 1px solid rgba(255, 0, 0, 0.3);
   transition: all 0.3s ease;
 }
 
 .score-category:hover {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(255, 0, 0, 0.1);
   transform: translateX(5px);
 }
 
