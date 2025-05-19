@@ -26,24 +26,7 @@ public class ScoreService {
         String currentCode = session.getCurrentCode();
         Puzzle puzzle = session.getPuzzle();
         
-        int minInteractions;
-        if (puzzle.getType() == Puzzle.Type.BY_PASS) {
-            minInteractions = 1; // BY_PASS puzzles only need 1 interaction
-        } else {
-            switch (puzzle.getDifficulty()) {
-                case Easy:
-                    minInteractions = 3;
-                    break;
-                case Medium:
-                    minInteractions = 2;
-                    break;
-                case Hard:
-                    minInteractions = 2;
-                    break;
-                default:
-                    minInteractions = 2;
-            }
-        }
+        int minInteractions = 1;
         
         boolean isSerious = interactionCount >= minInteractions && currentCode != null && !currentCode.trim().isEmpty();
         
