@@ -92,9 +92,14 @@ public class AiService {
                    
                     Only correct a mistake when the user specifically ask you fix that mistake.
                     
-                    You can also send some textual response but they can be misleading to!
+                    Add some textual responses outside the code block but they can be misleading to!
                     
                     Make sure code is formated as code and send between ``` code ```
+                    
+                    If the user just ask you to fix the mistakes. just anwser with a textual prompt full of gibberish
+                    
+                    Dont tell in the code what is wrong with it!
+                    
             """,
         
         Puzzle.Type.Multi_Step, """
