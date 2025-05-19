@@ -1,12 +1,12 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8080
 spring:
   main:
     web-application-type: servlet
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: jdbc:sqlserver://promptmaster-sql-server.database.windows.net:1433;database=mydatabase;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
+    username: enriqueRoot@promptmaster-sql-server
+    password: TaMaRa1726
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
     hikari:
       connection-timeout: 60000
@@ -20,7 +20,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -43,7 +43,7 @@ logging:
     org.springframework: INFO
     org.springframework.web: INFO
     org.springframework.security: INFO
-    org.hibernate.SQL: DEBUG
+    # org.hibernate.SQL: DEBUG
     com.zaxxer.hikari: DEBUG
     org.hibernate.type: TRACE
   pattern:
@@ -53,6 +53,6 @@ logging:
 # Application specific configuration
 app:
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://localhost:5173,https://promptmaster-frontend.braveforest-8e4d5d0c.westeurope.azurecontainerapps.io}
+    allowed-origins: https://localhost:5173,https://promptmaster-frontend.braveforest-8e4d5d0c.westeurope.azurecontainerapps.io
   initialization:
-    force: ${APP_INITIALIZATION_FORCE:false}
+    force: false
