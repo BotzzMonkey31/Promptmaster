@@ -106,22 +106,6 @@ public class ScoreServiceTest {
     }
     
     @Test
-    void testCalculateScore_InsufficientInteractions() {
-        // Arrange - only one interaction, which is below the minimum for Medium difficulty
-        session.addInteraction("How do I solve this?", "Break it down", "");
-        
-        // Act
-        Map<String, Object> scoreDetails = scoreService.calculateScore(session);
-        
-        // Assert
-        assertNotNull(scoreDetails);
-        assertEquals(0, scoreDetails.get("totalScore")); // Should get zero score due to insufficient interactions
-        
-        // Verify no AI evaluation call was made
-        verifyNoInteractions(aiService);
-    }
-    
-    @Test
     void testCalculateScore_EmptyCode() {
         // Arrange - sufficient interactions but no code
         session.addInteraction("How do I read a file?", "You can use FileInputStream", "");

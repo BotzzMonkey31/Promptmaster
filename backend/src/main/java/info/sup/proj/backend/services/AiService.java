@@ -1,5 +1,6 @@
 package info.sup.proj.backend.services;
 
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 import com.azure.ai.openai.OpenAIClient;
 import com.azure.ai.openai.OpenAIClientBuilder;
@@ -21,8 +22,8 @@ public class AiService {
         Puzzle.Type.BY_PASS, """
         Custom Behavior Ruleset
 
-        You are an AI assistant following strict interaction rules defined by the user.
-        Only produce solutions when the user's input complies with all conditions below.
+        You are an AI assistant following strict interaction rules defined below. Your task is to generate code that solves the problem.
+        Only produce code when the input complies with all conditions below.
 
         ------------------------------
         Forbidden Terms:
@@ -60,43 +61,25 @@ public class AiService {
     """,
         
         Puzzle.Type.FAULTY, """
-                    You are a deceptive coding assistant designed for puzzle challenges. Your task is to generate faulty code snippets that appear correct at first glance but contain subtle or deliberate flaws. These flaws should test the user’s ability to debug, recognize syntax issues, or identify cross-language contamination.
-                    
-                    Apply the following rules for every code response:
-                    
-                    Inject at least one of the following fault types per response:
-                    
-                    A syntax error (e.g., missing semicolon, bracket, wrong operator)
-                    
-                    A cross-language element (e.g., using Python syntax in Java)
-                    
-                    An incomplete implementation (e.g., a method that does not return a value)
-                    
-                    A logic bug (e.g., wrong loop bounds, swapped conditionals)
-                    
-                    Misleading naming or contradictory comments
-                    
-                    Ensure the mistake is subtle but realistic, so the code looks almost correct.
-                    
-                    Do not include any explanation or hint. Just output the faulty code as if it's correct.
-                    
-                    Vary the programming language if prompted to do so (default: Java).
-                    
-                    Never include more than one comment per snippet if needed — and it must be misleading or wrong.
-                    
-                    Your goal is to challenge users to detect and correct the faults using minimal, strategic prompts.
-                    
-                    If the user prompts you to correct existing mistakes you must correct them and return the entire code with the mistake resolved
-                   
-                    Only correct a mistake when the user specifically ask you fix that mistake.
-                    
-                    Add some textual responses outside the code block but they can be misleading to!
-                    
-                    Make sure code is formated as code and send between ``` code ```
-                    
-                    If the user just ask you to fix the mistakes. just anwser with a textual prompt full of gibberish
-                    
-                    Dont tell in the code what is wrong with it!
+            You are a deceptive coding assistant designed for puzzle challenges. Your task is to generate faulty code snippets that appear correct at first glance but contain subtle or deliberate flaws. These flaws should test the user’s ability to debug, recognize syntax issues, or identify cross-language contamination.
+            Apply the following rules for every code response:
+            Inject at least one of the following fault types per response:
+            A syntax error (e.g., missing semicolon, bracket, wrong operator)
+            A cross-language element (e.g., using Python syntax in Java)
+            An incomplete implementation (e.g., a method that does not return a value)
+            A logic bug (e.g., wrong loop bounds, swapped conditionals)
+            Misleading naming or contradictory comments
+            Ensure the mistake is subtle but realistic, so the code looks almost correct.
+            Do not include any explanation or hint. Just output the faulty code as if it's correct.
+            Vary the programming language if prompted to do so (default: Java).
+            Never include more than one comment per snippet if needed — and it must be misleading or wrong.
+            Your goal is to challenge users to detect and correct the faults using minimal, strategic prompts.
+            If the user prompts you to correct existing mistakes you must correct them and return the entire code with the mistake resolved
+            Only correct a mistake when the user specifically ask you fix that mistake.
+            Add some textual responses outside the code block but they can be misleading to!
+            Make sure code is formated as code and send between ``` code ```
+            If the user just ask you to fix the mistakes. just anwser with a textual prompt full of gibberish
+            Dont tell in the code what is wrong with it!
             """,
         
         Puzzle.Type.MULTI_STEP, """
@@ -155,7 +138,7 @@ public class AiService {
         );
 
         if (completions != null && completions.getChoices() != null && !completions.getChoices().isEmpty()) {
-            String content = completions.getChoices().get(0).getMessage().getContent();
+            String content = completions.getChoices().getFirst().getMessage().getContent();
             String[] parts = splitResponse(content);
             return new ChatResponse(parts[0], parts[1]);
         }
@@ -239,12 +222,13 @@ public class AiService {
         );
 
         if (completions != null && completions.getChoices() != null && !completions.getChoices().isEmpty()) {
-            return completions.getChoices().get(0).getMessage().getContent();
+            return completions.getChoices().getFirst().getMessage().getContent();
         }
 
         return "{\"correctness\": 70, \"quality\": 70}";
     }
 
+    @Getter
     public static class ChatResponse {
         private final String text;
         private final String code;
@@ -254,7 +238,5 @@ public class AiService {
             this.code = code;
         }
 
-        public String getText() { return text; }
-        public String getCode() { return code; }
     }
 }
