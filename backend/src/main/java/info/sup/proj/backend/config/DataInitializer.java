@@ -39,7 +39,6 @@ public class DataInitializer implements CommandLineRunner {
             }
         } catch (Exception e) {
             logger.error("Failed to initialize database: {}", e.getMessage(), e);
-            // Don't rethrow to allow application to start even if initialization fails
         }
     }
 

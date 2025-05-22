@@ -17,7 +17,7 @@ public class AiController {
     private final AiService aiService;
     private final PuzzleService puzzleService;
     private final PuzzleSessionService sessionService;
-    public static final String SUCCES = "succes";
+    public static final String SUCCES = "success";
     public static final String MESSAGE = "message";
     private final Logger logger = LoggerFactory.getLogger(AiController.class);
 
