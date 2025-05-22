@@ -32,8 +32,7 @@ public class PuzzleSession {
     private String currentCode = "";
     private LocalDateTime createdAt;
     private LocalDateTime lastUpdatedAt;
-
-    // Metrics
+    
     private Integer attemptCount = 1;
     private Integer bestInteractionCount = null;
     private Long bestTimeSeconds = null;
@@ -50,7 +49,6 @@ public class PuzzleSession {
         lastUpdatedAt = LocalDateTime.now();
     }
 
-    // For storing individual user-AI interaction
     @Embeddable
     public static class Interaction {
         private String userInput;
@@ -192,11 +190,9 @@ public class PuzzleSession {
     public void updateBestMetrics() {
         if (isValidCompletedSession()) {
             int currentInteractionCount = interactions.size();
-
-            // Calculate time taken in seconds
+            
             long currentTimeSeconds = java.time.Duration.between(createdAt, lastUpdatedAt).getSeconds();
-
-            // Update best metrics if this is first completion or better than previous
+            
             if (bestInteractionCount == null || currentInteractionCount < bestInteractionCount) {
                 bestInteractionCount = currentInteractionCount;
             }

@@ -68,17 +68,12 @@ public class PuzzleSessionService {
         return sessionRepository.save(session);
     }
 
-    /**
-     * Helper method to create a new session
-     */
     private PuzzleSession createNewSession(Integer puzzleId, Long userId) {
         return puzzleRepository.findById(puzzleId)
             .map(puzzle -> {
-                // Get the user
                 User user = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
                 
-                // Create a fresh session
                 PuzzleSession newSession = new PuzzleSession();
                 newSession.setPuzzle(puzzle);
                 newSession.setUser(user);
@@ -87,16 +82,13 @@ public class PuzzleSessionService {
             .orElseThrow(() -> new IllegalArgumentException("Puzzle not found with ID: " + puzzleId));
     }
 
-    /**
-     * Reset a puzzle session for a specific user-puzzle combination.
-     * This allows users to start over when attempting to improve their score.
-     */
     @Transactional
     public PuzzleSession resetSession(Integer puzzleId, Long userId) {
         Optional<PuzzleSession> existingSession = sessionRepository.findByPuzzleIdAndUserId(puzzleId, userId);
         
         Integer bestInteractionCount = null;
         Long bestTimeSeconds = null;
+        Integer attemptCount = 1;
         Integer attemptCount = 1;
         
         if (existingSession.isPresent()) {
@@ -107,6 +99,7 @@ public class PuzzleSessionService {
             attemptCount = session.getAttemptCount() != null ? session.getAttemptCount() + 1 : 1;
 
             sessionRepository.delete(session);
+            sessionRepository.flush();
             sessionRepository.flush();
         }
 
@@ -124,10 +117,6 @@ public class PuzzleSessionService {
         return this.getOrCreateSession(puzzleId, userId).getCurrentCode();
     }
     
-    /**
-     * Mark a puzzle session as completed and update metrics
-     * @return Map containing session metrics and score details
-     */
     @Transactional
     public Map<String, Object> markSessionCompleted(Integer puzzleId, Long userId) {
         PuzzleSession session = this.getOrCreateSession(puzzleId, userId);
@@ -135,7 +124,6 @@ public class PuzzleSessionService {
         session.updateBestMetrics();
         sessionRepository.save(session);
         
-        // Calculate score using the ScoreService
         Map<String, Object> scoreDetails = scoreService.calculateScore(session);
         
         // Combine metrics and score details
