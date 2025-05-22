@@ -3,11 +3,14 @@ package info.sup.proj.backend.services;
 import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.repositories.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
 
 @Service
 public class MatchmakingService {
@@ -18,6 +21,11 @@ public class MatchmakingService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
+    private static final String USERNF = "User not found";
+    private static final String QUEUE_GAME = "/queue/game";
+
+    private final Logger logger = LoggerFactory.getLogger(MatchmakingService.class);
+
     public MatchmakingService(GameService gameService, UserRepository userRepository, SimpMessagingTemplate messagingTemplate) {
         this.gameService = gameService;
         this.userRepository = userRepository;
@@ -26,7 +34,7 @@ public class MatchmakingService {
 
     public void addPlayerToLobby(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
 
         Player player = new Player(
             userId.toString(),
@@ -81,7 +89,7 @@ public class MatchmakingService {
 
         messagingTemplate.convertAndSendToUser(
             targetId,
-            "/queue/game",
+            QUEUE_GAME,
             challengeInfo
         );
     }
@@ -106,8 +114,7 @@ public class MatchmakingService {
             removePlayerFromLobby(challengerId);
             removePlayerFromLobby(targetId);
         } catch (Exception e) {
-            System.err.println("Error creating game: " + e.getMessage());
-            throw e;
+            logger.error("Error creating game: {}" , e.getMessage());
         }
     }
 
@@ -116,14 +123,13 @@ public class MatchmakingService {
         if (challengerId == null) {
             throw new IllegalStateException("No active challenge found");
         }
-
         Map<String, Object> rejectInfo = new HashMap<>();
         rejectInfo.put("type", "CHALLENGE_REJECTED");
         rejectInfo.put("content", "Challenge was rejected");
 
         messagingTemplate.convertAndSendToUser(
             challengerId,
-            "/queue/game",
+            QUEUE_GAME,
             rejectInfo
         );
 
@@ -135,7 +141,7 @@ public class MatchmakingService {
         if (searchingPlayer == null) return;
 
         User searchingUser = userRepository.findById(Long.parseLong(userId))
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
 
         int searchingElo = searchingUser.getElo();
         int eloRange = preferences != null && preferences.get("eloRange") != null 
@@ -166,8 +172,7 @@ public class MatchmakingService {
                 removePlayerFromLobby(userId);
                 removePlayerFromLobby(opponentPlayer.getId());
             } catch (Exception e) {
-                System.err.println("Error creating game: " + e.getMessage());
-                throw e;
+                logger.error("Error creating game: {}" , e.getMessage());
             }
         }
     }
@@ -194,12 +199,11 @@ public class MatchmakingService {
             try {
                 messagingTemplate.convertAndSendToUser(
                     player.getId(),
-                    "/queue/game",
+                    QUEUE_GAME,
                     gameStartInfo
                 );
             } catch (Exception e) {
-                System.err.println("Error sending game start info to " + player.getUsername() + ": " + e.getMessage());
-                throw e;
+                logger.error("Error sending game start info to {}: {}" ,player.getUsername(), e.getMessage());
             }
         }
     }
@@ -209,7 +213,7 @@ public class MatchmakingService {
             .filter(player -> !searchingPlayers.containsKey(player.getId()))
             .map(player -> {
                 User user = userRepository.findById(Long.parseLong(player.getId()))
-                        .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                        .orElseThrow(() -> new IllegalArgumentException(USERNF));
                 
                 Map<String, Object> playerInfo = new HashMap<>();
                 playerInfo.put("userId", Long.parseLong(player.getId()));

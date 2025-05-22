@@ -4,6 +4,8 @@ import info.sup.proj.backend.exceptions.UserAlreadyExistsException;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.model.UserRegistrationDto;
 import info.sup.proj.backend.services.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    Logger logger = LoggerFactory.getLogger(UserController.class);
 
     public UserController(UserService userService){
         this.userService = userService;
@@ -29,7 +32,7 @@ public class UserController {
     
     @GetMapping("/email")
     public ResponseEntity<User> getUserByEmailParam(@RequestParam String email) {
-        System.out.println("Received request for email: " + email);
+        logger.info("Received request for email: {}",email);
         return userService.getUserByEmail(email)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());

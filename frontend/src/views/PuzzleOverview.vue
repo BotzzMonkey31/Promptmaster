@@ -25,18 +25,18 @@
         class="px-4 py-3 border rounded-full w-1/3 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <option value="">Select Type</option>
-        <option value="Bypass">Bypass</option>
-        <option value="Faulty">Faulty</option>
-        <option value="Multi-Step">Multi-Step</option>
+        <option value="BY_PASS">Bypass</option>
+        <option value="FAULTY">Faulty</option>
+        <option value="MULTI_STEP">Multi-Step</option>
       </select>
       <select
         v-model="selectedDifficulty"
         class="px-4 py-3 border rounded-full w-1/3 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <option value="">Select Difficulty</option>
-        <option value="Easy">Easy</option>
-        <option value="Medium">Medium</option>
-        <option value="Hard">Hard</option>
+        <option value="EASY">Easy</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="HARD">Hard</option>
       </select>
     </div>
 
@@ -122,8 +122,8 @@ export default {
       return this.puzzles.filter((puzzle) => {
         const nameMatch = puzzle.name.toLowerCase().includes(this.searchQuery.toLowerCase())
 
-        const typeMatch = this.selectedType === '' ||
-                         puzzle.type === this.typeDisplayToValue(this.selectedType)
+        const typeMatch =
+          this.selectedType === '' || puzzle.type === this.typeDisplayToValue(this.selectedType)
 
         const difficultyMatch =
           this.selectedDifficulty === '' || puzzle.difficulty === this.selectedDifficulty
@@ -167,13 +167,13 @@ export default {
       }
     },
     navigateToPuzzle(id: number) {
-    this.$router.push(`/puzzle/${id}`);
-  },
+      this.$router.push(`/puzzle/${id}`)
+    },
     difficultyClass(difficulty: string) {
       const styles: Record<string, string> = {
-        Easy: 'bg-green-600',
-        Medium: 'bg-yellow-500',
-        Hard: 'bg-red-600',
+        EASY: 'bg-green-600',
+        MEDIUM: 'bg-yellow-500',
+        HARD: 'bg-red-600',
       }
 
       return styles[difficulty] || 'bg-gray-500'
@@ -181,21 +181,21 @@ export default {
     typeClass(type: string) {
       if (!type) return 'bg-gray-500'
       const styles: Record<string, string> = {
-        'BY_PASS': 'bg-black',
-        Faulty: 'bg-blue-900',
-        'Multi_Step': 'bg-blue-400',
+        BY_PASS: 'bg-black',
+        FAULTY: 'bg-blue-900',
+        MULTI_STEP: 'bg-blue-400',
       }
 
       return styles[type] || 'bg-gray-500'
     },
     formatType(type: string) {
       if (type === 'BY_PASS') return 'Bypass'
-      if (type === 'Multi_Step') return 'Multi-Step'
-      return type // Return as is for other values like 'Faulty'
+      if (type === 'MULTI_STEP') return 'Multi-Step'
+      return type // Return as is for other values like 'FAULTY'
     },
     typeDisplayToValue(displayType: string) {
       if (displayType === 'Bypass') return 'BY_PASS'
-      if (displayType === 'Multi-Step') return 'Multi_Step'
+      if (displayType === 'Multi-Step') return 'MULTI_STEP'
       return displayType
     },
   },

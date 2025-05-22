@@ -156,14 +156,12 @@ onMounted(fetchPuzzle);
 const currentComponent = computed(() => {
   if (!puzzle.value) return null;
   switch (puzzle.value.type) {
-    case 'Multi_Step':
+    case 'MULTI_STEP':
       return MultiStepSolve;
     case 'BY_PASS':
       return BypassSolve;
-    case 'Faulty':
+    case 'FAULTY':
       return FaultySolve;
-    // case 'Faulty':
-    //   return FaultySolve;
     default:
       return null;
   }

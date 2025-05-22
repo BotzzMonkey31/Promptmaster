@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Entity
 @Table(name = "puzzle_sessions", uniqueConstraints = {
@@ -17,7 +18,7 @@ public class PuzzleSession {
     @ManyToOne
     @JoinColumn(name = "puzzle_id", nullable = false)
     private Puzzle puzzle;
-    
+
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -31,7 +32,7 @@ public class PuzzleSession {
     private String currentCode = "";
     private LocalDateTime createdAt;
     private LocalDateTime lastUpdatedAt;
-    
+
     // Metrics
     private Integer attemptCount = 1;
     private Integer bestInteractionCount = null;
@@ -53,10 +54,10 @@ public class PuzzleSession {
     @Embeddable
     public static class Interaction {
         private String userInput;
-        
+
         @Column(columnDefinition = "TEXT")
         private String aiTextResponse;
-        
+
         @Column(columnDefinition = "TEXT")
         private String aiCodeResponse;
 
@@ -182,21 +183,28 @@ public class PuzzleSession {
         isCompleted = completed;
     }
 
+    private boolean isValidCompletedSession() {
+        return isCompleted
+                && Objects.nonNull(interactions)
+                && !interactions.isEmpty();
+    }
+
     public void updateBestMetrics() {
-        if (isCompleted && interactions != null && !interactions.isEmpty()) {
+        if (isValidCompletedSession()) {
             int currentInteractionCount = interactions.size();
-            
+
             // Calculate time taken in seconds
             long currentTimeSeconds = java.time.Duration.between(createdAt, lastUpdatedAt).getSeconds();
-            
+
             // Update best metrics if this is first completion or better than previous
             if (bestInteractionCount == null || currentInteractionCount < bestInteractionCount) {
                 bestInteractionCount = currentInteractionCount;
             }
-            
+
             if (bestTimeSeconds == null || currentTimeSeconds < bestTimeSeconds) {
                 bestTimeSeconds = currentTimeSeconds;
             }
         }
     }
+
 }

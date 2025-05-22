@@ -8,9 +8,9 @@ export interface Puzzle {
   id: string;
   name: string;
   description: string;
-  type: string; // 'java', 'javascript', 'python', etc.
-  difficulty: string;
-  starterCode?: string; // Add optional starterCode property
+  type: 'BY_PASS' | 'FAULTY' | 'MULTI_STEP';
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  starterCode?: string;
   testCases?: string[];
   solutionSteps?: SolutionStep[];
   categories?: string[];

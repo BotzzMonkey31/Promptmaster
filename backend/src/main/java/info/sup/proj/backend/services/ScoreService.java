@@ -12,6 +12,9 @@ public class ScoreService {
 
     private final AiService aiService;
 
+    private static final String CORRECTNESS = "correctness";
+    private static final String QUALITY = "quality";
+
     public ScoreService(AiService aiService) {
         this.aiService = aiService;
     }
@@ -30,15 +33,19 @@ public class ScoreService {
         
         boolean isSerious = interactionCount >= minInteractions && currentCode != null && !currentCode.trim().isEmpty();
         
-        int timeScore, efficiencyScore, tokenScore, correctnessScore, qualityScore;
+        int timeScore;
+        int efficiencyScore;
+        int tokenScore;
+        int correctnessScore;
+        int qualityScore;
         
         if (isSerious) {
             timeScore = calculateTimeScore(timeSeconds, puzzle.getDifficulty());
             efficiencyScore = calculateEfficiencyScore(interactionCount, puzzle.getDifficulty());
             
             Map<String, Integer> aiEvaluation = evaluateCodeWithAi(currentCode, puzzle);
-            correctnessScore = aiEvaluation.get("correctness");
-            qualityScore = aiEvaluation.get("quality");
+            correctnessScore = aiEvaluation.get(CORRECTNESS);
+            qualityScore = aiEvaluation.get(QUALITY);
             tokenScore = calculateTokenScore(interactionCount, puzzle.getDifficulty());
         } else {
             timeScore = 0;
@@ -81,13 +88,13 @@ public class ScoreService {
     private int calculateTimeScore(long seconds, Puzzle.Difficulty difficulty) {
         long expectedTime;
         switch (difficulty) {
-            case Easy:
+            case EASY:
                 expectedTime = 600;
                 break;
-            case Medium:
+            case MEDIUM:
                 expectedTime = 450;
                 break;
-            case Hard:
+            case HARD:
                 expectedTime = 300;
                 break;
             default:
@@ -116,13 +123,13 @@ public class ScoreService {
     private int calculateEfficiencyScore(int interactionCount, Puzzle.Difficulty difficulty) {
         int expectedInteractions;
         switch (difficulty) {
-            case Easy:
+            case EASY:
                 expectedInteractions = 9;
                 break;
-            case Medium:
+            case MEDIUM:
                 expectedInteractions = 6;
                 break;
-            case Hard:
+            case HARD:
                 expectedInteractions = 4;
                 break;
             default:
@@ -151,13 +158,13 @@ public class ScoreService {
     private int calculateTokenScore(int interactionCount, Puzzle.Difficulty difficulty) {
         int expectedTokenUsage;
         switch (difficulty) {
-            case Easy:
+            case EASY:
                 expectedTokenUsage = 12;
                 break;
-            case Medium:
+            case MEDIUM:
                 expectedTokenUsage = 8;
                 break;
-            case Hard:
+            case HARD:
                 expectedTokenUsage = 5;
                 break;
             default:
@@ -197,18 +204,18 @@ public class ScoreService {
         } catch (Exception e) {
             // More lenient default scores for BY_PASS puzzles
             if (puzzle.getType() == Puzzle.Type.BY_PASS) {
-                scores.put("correctness", 85);
-                scores.put("quality", 80);
+                scores.put(CORRECTNESS, 85);
+                scores.put(QUALITY, 80);
             } else {
-                scores.put("correctness", 75);
-                scores.put("quality", 70);
+                scores.put(CORRECTNESS, 75);
+                scores.put(QUALITY, 70);
             }
         }
         
         // Ensure minimum scores for BY_PASS puzzles
         if (puzzle.getType() == Puzzle.Type.BY_PASS) {
-            scores.put("correctness", Math.max(scores.getOrDefault("correctness", 85), 85));
-            scores.put("quality", Math.max(scores.getOrDefault("quality", 80), 80));
+            scores.put(CORRECTNESS, Math.max(scores.getOrDefault(CORRECTNESS, 85), 85));
+            scores.put(QUALITY, Math.max(scores.getOrDefault(QUALITY, 80), 80));
         }
         
         return scores;
@@ -216,15 +223,18 @@ public class ScoreService {
     
     private String createEvaluationPrompt(String code, Puzzle puzzle) {
         return String.format(
-            "Please evaluate this code solution for the following puzzle:\n" +
-            "Puzzle: %s\n" +
-            "Description: %s\n\n" +
-            "Evaluate the following aspects on a scale from 0-100:\n" +
-            "1. Correctness: Does the code correctly solve the problem as described?\n" +
-            "2. Code quality: Is the code well-structured, efficient, and following best practices?\n\n" +
-            "Respond in JSON format: {\"correctness\": X, \"quality\": Y} where X and Y are scores from 0-100.",
+            """
+            Please evaluate this code solution for the following puzzle:
+            Puzzle: %s
+            Description: %s
+            Code: %s
+            Evaluate the following aspects on a scale from 0-100:
+            1. Correctness: Does the code correctly solve the problem as described?
+            2. Code quality: Is the code well-structured, efficient, and following best practices?
+            Respond in JSON format: {correctness: X, quality: Y} where X and Y are scores from 0-100.""",
             puzzle.getName(),
-            puzzle.getDescription()
+            puzzle.getDescription(),
+                code
         );
     }
     
@@ -236,22 +246,22 @@ public class ScoreService {
                 int correctnessIndex = evaluationResponse.indexOf("\"correctness\":");
                 int commaIndex = evaluationResponse.indexOf(",", correctnessIndex);
                 String correctnessStr = evaluationResponse.substring(correctnessIndex + 14, commaIndex).trim();
-                result.put("correctness", Integer.parseInt(correctnessStr));
+                result.put(CORRECTNESS, Integer.parseInt(correctnessStr));
             }
             
             if (evaluationResponse.contains("\"quality\":")) {
                 int qualityIndex = evaluationResponse.indexOf("\"quality\":");
                 int endIndex = evaluationResponse.indexOf("}", qualityIndex);
                 String qualityStr = evaluationResponse.substring(qualityIndex + 10, endIndex).trim();
-                result.put("quality", Integer.parseInt(qualityStr));
+                result.put(QUALITY, Integer.parseInt(qualityStr));
             }
         } catch (Exception e) {
-            result.put("correctness", 75);
-            result.put("quality", 70);
+            result.put(CORRECTNESS, 75);
+            result.put(QUALITY, 70);
         }
         
-        if (!result.containsKey("correctness")) result.put("correctness", 75);
-        if (!result.containsKey("quality")) result.put("quality", 70);
+        result.computeIfAbsent(CORRECTNESS, k -> 75);
+        result.computeIfAbsent(QUALITY, k -> 70);
         
         return result;
     }

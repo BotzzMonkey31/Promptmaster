@@ -50,16 +50,16 @@ export default {
             'Challenge your friends or random opponents in competitive duels. Matchmaking is based on rank. You can get any form of puzzle at random.',
         },
         {
-          title: 'BYPASS',
+          title: 'BY_PASS',
           description:
             'Test your skills. You must try to bypass certain restrictions set on the prompt.',
         },
         {
-          title: 'Step-by-Step Puzzles',
+          title: 'MULTI_STEP',
           description: 'Solve multi-step challenges where you build up the code step by step.',
         },
         {
-          title: 'Faulty Code Generator',
+          title: 'FAULTY',
           description: 'Identify and fix intentional bugs made by the LLM.',
         },
       ],

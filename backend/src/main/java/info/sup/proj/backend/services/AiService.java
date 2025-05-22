@@ -16,10 +16,6 @@ import java.util.Map;
 public class AiService {
     private final OpenAIClient client;
     private final String deploymentName;
-    
-    private static final String REQUEST_ANALYZER_PROMPT = """
-        You are an AI that analyzes user requests in the context of programming puzzles.
-        """;
 
     private static final Map<Puzzle.Type, String> TYPE_SPECIFIC_PROMPTS = Map.of(
         Puzzle.Type.BY_PASS, """
@@ -37,10 +33,12 @@ public class AiService {
         - generate
         - array
         - sort
+        - program
 
         ------------------------------
         Request Requirements:
         - User must provide a sufficiently descriptive prompt with no forbidden words.
+        - The user cannot just copy the task he must provide a clear and self written prompt.
         - If valid, respond with code only — no text, no comments.
         - Do not ask if the user wants code; assume yes if rules are met.
 
@@ -53,15 +51,15 @@ public class AiService {
         ------------------------------
         ⚙️ Post-Success Behavior:
         - If the user's prompt is valid, respond with code formatted as code (code between ``` ```) and a congratulatory sentence.
-        - the code you send should be ablo to place in a empty .java file and should run.
-        - The code must be formatted as logic code. So not everthing on one line.
-        - The code responses are by default in Java if not asked other wise. 
+        - the code you send should be able to place in a empty .java file and should run.
+        - The code must be formatted as logic code. So not everything on one line.
+        - The code responses are by default in Java if not asked other wise.
         - Never include explanations or comments.
 
         Enforce these rules for the duration of the session. Do not break character.
     """,
         
-        Puzzle.Type.Faulty, """
+        Puzzle.Type.FAULTY, """
                     You are a deceptive coding assistant designed for puzzle challenges. Your task is to generate faulty code snippets that appear correct at first glance but contain subtle or deliberate flaws. These flaws should test the user’s ability to debug, recognize syntax issues, or identify cross-language contamination.
                     
                     Apply the following rules for every code response:
@@ -99,10 +97,9 @@ public class AiService {
                     If the user just ask you to fix the mistakes. just anwser with a textual prompt full of gibberish
                     
                     Dont tell in the code what is wrong with it!
-                    
             """,
         
-        Puzzle.Type.Multi_Step, """
+        Puzzle.Type.MULTI_STEP, """
             You are an AI assistant helping with multi-step challenges.
             Guidelines:
             1. Never suggest steps or ways to break down the problem
@@ -169,68 +166,59 @@ public class AiService {
         );
     }
 
-    private String analyzeRequest(String input) {
-        List<ChatRequestMessage> messages = new ArrayList<>();
-        messages.add(new ChatRequestSystemMessage(REQUEST_ANALYZER_PROMPT));
-        messages.add(new ChatRequestUserMessage(input));
-
-        ChatCompletions completions = client.getChatCompletions(
-            deploymentName,
-            new ChatCompletionsOptions(messages)
-                .setTemperature(0.0)
-                .setMaxTokens(10)
-        );
-
-        if (completions != null && 
-            completions.getChoices() != null && 
-            !completions.getChoices().isEmpty()) {
-            return completions.getChoices().get(0).getMessage().getContent().trim().toUpperCase();
-        }
-
-        return "BROAD";
-    }
-
     private String[] splitResponse(String content) {
-        String text = content;
-        String code = "";
-        
         int codeStart = content.indexOf("```");
         if (codeStart != -1) {
-            int codeEnd = content.indexOf("```", codeStart + 3);
-            if (codeEnd != -1) {
-                text = content.substring(0, codeStart).trim();
-                
-                String codeContent = content.substring(codeStart + 3, codeEnd);
-                int newlinePos = codeContent.indexOf('\n');
-                
-                if (newlinePos != -1) {
-                    code = codeContent.substring(newlinePos + 1).trim();
-                } else {
-                    code = codeContent.trim();
-                }
-                
-                if (codeEnd + 3 < content.length()) {
-                    text += " " + content.substring(codeEnd + 3).trim();
-                }
-            }
+            return splitMarkdownCode(content, codeStart);
         } else {
-            String[] codeIndicators = {
-                "public class", "def ", "function ", "import ", "package ", "var ", "const ", 
-                "let ", "#include", "using namespace", "public static void main"
-            };
-            
-            for (String indicator : codeIndicators) {
-                int indicatorPos = content.indexOf(indicator);
-                if (indicatorPos > 20) {
-                    text = content.substring(0, indicatorPos).trim();
-                    code = content.substring(indicatorPos).trim();
-                    break;
-                }
-            }
+            return splitByCodeIndicator(content);
         }
-        
+    }
+
+    private String[] splitMarkdownCode(String content, int codeStart) {
+        int spaces = 3;
+        int codeEnd = content.indexOf("```", codeStart + spaces);
+        if (codeEnd == -1) {
+            return new String[]{content.trim(), ""};
+        }
+
+        String text = content.substring(0, codeStart).trim();
+        String codeContent = content.substring(codeStart + spaces, codeEnd);
+        String code = extractCode(codeContent);
+
+        if (codeEnd + spaces < content.length()) {
+            text += " " + content.substring(codeEnd + spaces).trim();
+        }
+
         return new String[]{text, code};
     }
+
+    private String[] splitByCodeIndicator(String content) {
+        String[] codeIndicators = {
+                "public class", "def ", "function ", "import ", "package ", "var ", "const ",
+                "let ", "#include", "using namespace", "public static void main"
+        };
+
+        for (String indicator : codeIndicators) {
+            int indicatorPos = content.indexOf(indicator);
+            if (indicatorPos > 20) {
+                String text = content.substring(0, indicatorPos).trim();
+                String code = content.substring(indicatorPos).trim();
+                return new String[]{text, code};
+            }
+        }
+
+        return new String[]{content.trim(), ""};
+    }
+
+    private String extractCode(String codeContent) {
+        int newlinePos = codeContent.indexOf('\n');
+        if (newlinePos != -1) {
+            return codeContent.substring(newlinePos + 1).trim();
+        }
+        return codeContent.trim();
+    }
+
 
     public String getCodeEvaluation(String evaluationPrompt, String code, Puzzle.Type puzzleType) {
         List<ChatRequestMessage> messages = new ArrayList<>();

@@ -266,7 +266,7 @@ const handleSubmit = async () => {
 
     if (response.status === 201) {
       Cookies.set('user', JSON.stringify(response.data), { expires: 7 })
-      router.push('/home')
+      router.push('/')
     } else {
       console.error('Unexpected response status:', response.status)
       error.value = 'Error creating user profile'

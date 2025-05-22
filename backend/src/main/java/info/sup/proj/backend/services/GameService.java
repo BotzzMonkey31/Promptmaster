@@ -1,7 +1,6 @@
 package info.sup.proj.backend.services;
 
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import info.sup.proj.backend.model.Game;
 import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.model.Puzzle;
@@ -16,12 +15,18 @@ import java.util.ArrayList;
 @Service
 public class GameService {
     private final Map<String, Game> activeGames = new ConcurrentHashMap<>();
-    
-    @Autowired
-    private PuzzleRepository puzzleRepository;
 
-    @Autowired
-    private AiService aiService;
+    private final PuzzleRepository puzzleRepository;
+
+    private final AiService aiService;
+
+    private static final String CORRECTNESS = "correctness";
+    private static final String QUALITY = "quality";
+
+    public GameService(PuzzleRepository puzzleRepository, AiService aiService) {
+        this.puzzleRepository = puzzleRepository;
+        this.aiService = aiService;
+    }
 
     public Game createGame(Player player1, Player player2) {
         var puzzle = getRandomPuzzle();
@@ -55,13 +60,14 @@ public class GameService {
         Puzzle currentPuzzle = game.getCurrentPuzzle();
         
         String evaluationPrompt = String.format(
-            "Please evaluate this code solution for the following puzzle:\n" +
-            "Puzzle: %s\n" +
-            "Description: %s\n\n" +
-            "Evaluate the following aspects on a scale from 0-100:\n" +
-            "1. Correctness: Does the code correctly solve the problem as described?\n" +
-            "2. Code quality: Is the code well-structured, efficient, and following best practices?\n\n" +
-            "Respond in JSON format: {\"correctness\": X, \"quality\": Y} where X and Y are scores from 0-100.",
+            """
+            Please evaluate this code solution for the following puzzle:
+            Puzzle: %s
+            "Description: %s +
+            "Evaluate the following aspects on a scale from 0-100:
+            "1. Correctness: Does the code correctly solve the problem as described?
+            "2. Code quality: Is the code well-structured, efficient, and following best practices?
+            "Respond in JSON format: {correctness: X, quality: Y} where X and Y are scores from 0-100.""",
             currentPuzzle.getName(),
             currentPuzzle.getDescription()
         );
@@ -69,8 +75,8 @@ public class GameService {
         String evaluationResponse = aiService.getCodeEvaluation(evaluationPrompt, code, currentPuzzle.getType());
         Map<String, Integer> scores = parseAiEvaluation(evaluationResponse);
 
-        int correctnessScore = scores.get("correctness");
-        int qualityScore = scores.get("quality");
+        int correctnessScore = scores.get(CORRECTNESS);
+        int qualityScore = scores.get(QUALITY);
         int timeBonus = calculateTimeBonus(game.getRoundStartTime());
         
         int totalScore = (int) Math.round(
@@ -126,22 +132,22 @@ public class GameService {
                 int correctnessIndex = evaluationResponse.indexOf("\"correctness\":");
                 int commaIndex = evaluationResponse.indexOf(",", correctnessIndex);
                 String correctnessStr = evaluationResponse.substring(correctnessIndex + 14, commaIndex).trim();
-                result.put("correctness", Integer.parseInt(correctnessStr));
+                result.put(CORRECTNESS, Integer.parseInt(correctnessStr));
             }
             
             if (evaluationResponse.contains("\"quality\":")) {
                 int qualityIndex = evaluationResponse.indexOf("\"quality\":");
                 int endIndex = evaluationResponse.indexOf("}", qualityIndex);
                 String qualityStr = evaluationResponse.substring(qualityIndex + 10, endIndex).trim();
-                result.put("quality", Integer.parseInt(qualityStr));
+                result.put(QUALITY, Integer.parseInt(qualityStr));
             }
         } catch (Exception e) {
-            result.put("correctness", 75);
-            result.put("quality", 70);
+            result.put(CORRECTNESS, 75);
+            result.put(QUALITY, 70);
         }
         
-        if (!result.containsKey("correctness")) result.put("correctness", 75);
-        if (!result.containsKey("quality")) result.put("quality", 70);
+        result.computeIfAbsent(CORRECTNESS, k -> 75);
+        result.computeIfAbsent(QUALITY, k -> 70);
         
         return result;
     }
@@ -153,12 +159,9 @@ public class GameService {
         }
         
         game.markPlayerCompleted(playerId);
-        
-        if (game.allPlayersCompleted()) {
-            if (game.getCurrentRound() >= game.getTotalRounds()) {
+            if (game.allPlayersCompleted() && game.getCurrentRound() >= game.getTotalRounds()) {
                 game.endGame();
             }
-        }
         
         return game;
     }
@@ -247,14 +250,12 @@ public class GameService {
     }
 
     private Puzzle getRandomPuzzle() {
-        var puzzles = puzzleRepository.findByType(Puzzle.Type.Multi_Step);
+        var puzzles = puzzleRepository.findAll();
         if (puzzles.isEmpty()) {
             return null;
         }
         
-        return puzzles.stream()
-            .filter(puzzle -> puzzle.getName().equals("File Word Counter"))
-            .findFirst()
-            .orElse(null);
+        int randomIndex = (int) (Math.random() * puzzles.size());
+        return puzzles.get(randomIndex);
     }
 } 

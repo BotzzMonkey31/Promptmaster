@@ -1,7 +1,11 @@
 package info.sup.proj.backend.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.*;
 
+@Getter
 public class Game {
     private final String id;
     private final List<Player> players;
@@ -20,7 +24,7 @@ public class Game {
         this.puzzle = puzzle;
         this.totalRounds = totalRounds;
         this.currentRound = 1;
-        this.currentTurn = players.get(0).getId();
+        this.currentTurn = players.getFirst().getId();
         this.playerStatus = new HashMap<>();
         this.state = GameState.IN_PROGRESS;
         this.roundStartTime = System.currentTimeMillis();
@@ -33,58 +37,24 @@ public class Game {
         }
     }
 
-    public String getId() {
-        return id;
-    }
 
-    public List<Player> getPlayers() {
-        return Collections.unmodifiableList(players);
-    }
 
-    public int getTotalRounds() {
-        return totalRounds;
-    }
 
-    public int getCurrentRound() {
-        return currentRound;
-    }
-
-    public String getCurrentTurn() {
-        return currentTurn;
-    }
-
-    public Puzzle getPuzzle() {
-        return puzzle;
+    public String getPlayerCode(String playerId) {
+        return playerCode.getOrDefault(playerId, "");
     }
 
     public Puzzle getCurrentPuzzle() {
         return puzzle;
     }
 
-    public long getRoundStartTime() {
-        return roundStartTime;
-    }
-
-    public String getCurrentCode() {
-        return playerCode.get(currentTurn);
-    }
-
-    public String getPlayerCode(String playerId) {
-        return playerCode.getOrDefault(playerId, "");
-    }
-
     public void updateCurrentCode(String playerId, String code) {
-        if (playerCode.containsKey(playerId)) {
-            playerCode.put(playerId, code);
-        }
+        playerCode.computeIfPresent(playerId, (k, v) -> code);
     }
+
 
     public Map<String, PlayerStatus> getPlayerStatus() {
         return Collections.unmodifiableMap(playerStatus);
-    }
-
-    public GameState getState() {
-        return state;
     }
 
     public boolean hasPlayer(String playerId) {
@@ -114,7 +84,6 @@ public class Game {
     }
 
     public void startNextRound(Puzzle newPuzzle) {
-        int previousRound = currentRound;
         currentRound++;
         
         puzzle = newPuzzle;
@@ -144,8 +113,6 @@ public class Game {
         if (roundNumber > totalRounds) {
             roundNumber = totalRounds;
         }
-        
-        int previousRound = currentRound;
         
         // Force the specific round number
         currentRound = roundNumber;
@@ -177,7 +144,7 @@ public class Game {
         players.forEach(player -> playerCode.put(player.getId(), ""));
         
         // Switch starting player (round-robin)
-        if (players.size() > 0) {
+        if (players.isEmpty()) {
             currentTurn = players.get((currentRound - 1) % players.size()).getId();
         }
     }
@@ -197,28 +164,14 @@ public class Game {
         state = GameState.ENDED;
     }
 
+    @Getter
+    @Setter
     public static class PlayerStatus {
         private int score;
         private boolean hasCompleted;
 
         public PlayerStatus(int score, boolean hasCompleted) {
             this.score = score;
-            this.hasCompleted = hasCompleted;
-        }
-
-        public int getScore() {
-            return score;
-        }
-
-        public void setScore(int score) {
-            this.score = score;
-        }
-
-        public boolean isHasCompleted() {
-            return hasCompleted;
-        }
-
-        public void setHasCompleted(boolean hasCompleted) {
             this.hasCompleted = hasCompleted;
         }
     }

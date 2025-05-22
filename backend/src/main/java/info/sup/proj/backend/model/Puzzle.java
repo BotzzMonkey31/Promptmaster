@@ -8,9 +8,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "puzzles")
+@Getter
+@Setter
 public class Puzzle {
 
     @Id
@@ -39,51 +43,11 @@ public class Puzzle {
     }
 
     public enum Type {
-        BY_PASS, Faulty, Multi_Step
+        BY_PASS, FAULTY, MULTI_STEP
     }
 
     public enum Difficulty {
-        Easy, Medium, Hard
-    }
-
-    public Integer getId() {
-        return this.id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return this.name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getDescription() {
-        return this.description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public Type getType() {
-        return this.type;
-    }
-
-    public void setType(Type type) {
-        this.type = type;
-    }
-
-    public Difficulty getDifficulty() {
-        return this.difficulty;
-    }
-
-    public void setDifficulty(Difficulty difficulty) {
-        this.difficulty = difficulty;
+        EASY, MEDIUM, HARD
     }
 
 }
