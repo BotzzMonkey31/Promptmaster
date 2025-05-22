@@ -48,19 +48,23 @@ export default {
           title: 'VS Mode',
           description:
             'Challenge your friends or random opponents in competitive duels. Matchmaking is based on rank. You can get any form of puzzle at random.',
+          picture: './assets/VS_Mode.png',
         },
         {
           title: 'BYPASS',
           description:
             'Test your skills. You must try to bypass certain restrictions set on the prompt.',
+          picture: './assets/VS_Mode.png',
         },
         {
           title: 'Step-by-Step Puzzles',
           description: 'Solve multi-step challenges where you build up the code step by step.',
+          picture: './assets/VS_Mode.png',
         },
         {
           title: 'Faulty Code Generator',
           description: 'Identify and fix intentional bugs made by the LLM.',
+          picture: './assets/VS_Mode.png',
         },
       ],
       rankings: [
