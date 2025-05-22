@@ -89,7 +89,6 @@ public class PuzzleSessionService {
         Integer bestInteractionCount = null;
         Long bestTimeSeconds = null;
         Integer attemptCount = 1;
-        Integer attemptCount = 1;
         
         if (existingSession.isPresent()) {
             PuzzleSession session = existingSession.get();
