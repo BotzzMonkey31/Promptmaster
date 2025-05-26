@@ -4,13 +4,13 @@ import info.sup.proj.backend.exceptions.UserAlreadyExistsException;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.model.UserRegistrationDto;
 import info.sup.proj.backend.services.UserService;
+import info.sup.proj.backend.dto.ApiResponse;
+import info.sup.proj.backend.dto.UpdateEloRequestDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/users")
@@ -32,27 +32,27 @@ public class UserController {
     
     @GetMapping("/email")
     public ResponseEntity<User> getUserByEmailParam(@RequestParam String email) {
-        logger.info("Received request for email: {}",email);
+        logger.info("Received request for email: {}", email);
         return userService.getUserByEmail(email)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/check/{email}")
-    public ResponseEntity<Map<String, Boolean>> checkUser(@PathVariable String email) {
+    public ResponseEntity<ApiResponse<Boolean>> checkUser(@PathVariable String email) {
         boolean exists = userService.checkUserExists(email);
-        return ResponseEntity.ok(Map.of("exists", exists));
+        return ResponseEntity.ok(new ApiResponse<>(true, "User check completed", exists));
     }
 
     @PostMapping("/create")
-    public ResponseEntity<User> createUser(@RequestBody UserRegistrationDto registrationDto) {
+    public ResponseEntity<ApiResponse<User>> createUser(@RequestBody UserRegistrationDto registrationDto) {
         try {
             User user = userService.registerUser(registrationDto);
-            return new ResponseEntity<>(user, HttpStatus.CREATED);
+            return new ResponseEntity<>(new ApiResponse<>(true, "User created successfully", user), HttpStatus.CREATED);
         } catch (UserAlreadyExistsException e) {
             return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .build();
+                .body(new ApiResponse<>(false, "User already exists"));
         }
     }
     
@@ -60,27 +60,17 @@ public class UserController {
      * Update a user's ELO score by adding the puzzle completion score
      */
     @PostMapping("/update-elo")
-    public ResponseEntity<Map<String, Object>> updateUserElo(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<ApiResponse<Integer>> updateUserElo(@RequestBody UpdateEloRequestDto request) {
         try {
-            // Extract parameters from the request
-            Long userId = Long.parseLong(request.get("userId").toString());
-            Integer scoreToAdd = Integer.parseInt(request.get("scoreToAdd").toString());
-            
-            // Call service to update the user's ELO
-            User updatedUser = userService.updateUserElo(userId, scoreToAdd);
-            
-            // Return success response with the new ELO
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "ELO updated successfully",
-                "newElo", updatedUser.getElo()
+            User updatedUser = userService.updateUserElo(request.getUserId(), request.getScoreToAdd());
+            return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "ELO updated successfully",
+                updatedUser.getElo()
             ));
         } catch (Exception e) {
-            // Return error response
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                "success", false,
-                "message", "Failed to update ELO: " + e.getMessage()
-            ));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, "Failed to update ELO: " + e.getMessage()));
         }
     }
 }

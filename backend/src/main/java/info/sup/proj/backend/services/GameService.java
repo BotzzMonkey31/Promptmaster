@@ -5,12 +5,9 @@ import info.sup.proj.backend.model.Game;
 import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.model.Puzzle;
 import info.sup.proj.backend.repositories.PuzzleRepository;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.UUID;
-import java.util.List;
+
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.ArrayList;
 
 @Service
 public class GameService {
@@ -22,6 +19,7 @@ public class GameService {
 
     private static final String CORRECTNESS = "correctness";
     private static final String QUALITY = "quality";
+    private final Random r = new Random();
 
     public GameService(PuzzleRepository puzzleRepository, AiService aiService) {
         this.puzzleRepository = puzzleRepository;
@@ -254,8 +252,7 @@ public class GameService {
         if (puzzles.isEmpty()) {
             return null;
         }
-        
-        int randomIndex = (int) (Math.random() * puzzles.size());
+        int randomIndex = (this.r.nextInt(puzzles.size()-1));
         return puzzles.get(randomIndex);
     }
 } 

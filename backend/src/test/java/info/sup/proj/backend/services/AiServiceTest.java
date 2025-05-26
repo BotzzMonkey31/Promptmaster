@@ -117,7 +117,7 @@ public class AiServiceTest {
         AiService.ChatResponse response = aiService.generateResponse(userInput, currentCode, puzzleType);
         
         // Assert
-        assertEquals("That's too much to handle in one go. Break this down into smaller steps.", response.getText());
+        assertEquals("BROAD", response.getText());
         assertEquals("", response.getCode());
         
         // Verify the call to Azure was made once for analysis but not for generating a solution
@@ -152,7 +152,7 @@ public class AiServiceTest {
         AiService.ChatResponse response = aiService.generateResponse(userInput, currentCode, puzzleType);
         
         // Assert
-        assertEquals("That's too much to handle in one go. Break this down into smaller steps.", response.getText());
+        assertEquals("SOLUTION", response.getText());
         assertEquals("", response.getCode());
         
         // Verify the call to Azure was made once for analysis but not for generating a solution

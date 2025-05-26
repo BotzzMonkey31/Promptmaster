@@ -7,8 +7,9 @@ import info.sup.proj.backend.services.AiService;
 import info.sup.proj.backend.services.PuzzleService;
 import info.sup.proj.backend.services.PuzzleSessionService;
 import info.sup.proj.backend.services.AiService.ChatResponse;
-
-import java.util.Map;
+import info.sup.proj.backend.dto.ApiResponse;
+import info.sup.proj.backend.dto.SolveResponseDto;
+import info.sup.proj.backend.dto.SessionMetricsDto;
 import org.slf4j.Logger;
 
 @RestController
@@ -17,8 +18,6 @@ public class AiController {
     private final AiService aiService;
     private final PuzzleService puzzleService;
     private final PuzzleSessionService sessionService;
-    public static final String SUCCES = "success";
-    public static final String MESSAGE = "message";
     private final Logger logger = LoggerFactory.getLogger(AiController.class);
 
     public AiController(AiService aiService, PuzzleService puzzleService, PuzzleSessionService sessionService) {
@@ -28,7 +27,7 @@ public class AiController {
     }
 
     @PostMapping("/solve")
-    public ResponseEntity<Map<String, String>> solve(@RequestBody SolveRequest request) {
+    public ResponseEntity<SolveResponseDto> solve(@RequestBody SolveRequest request) {
         return puzzleService.getPuzzleById(request.getPuzzleId())
             .map(puzzle -> {
                 String currentCode = sessionService.getCurrentCode(
@@ -50,102 +49,65 @@ public class AiController {
                     response.getCode()
                 );
 
-                return ResponseEntity.ok(Map.of(
-                    "text", response.getText(),
-                    "code", response.getCode(),
-                    "completeCode", sessionService.getCurrentCode(request.getPuzzleId(), request.getUserId())
-                ));
+                SolveResponseDto solveResponse = new SolveResponseDto(
+                    response.getText(),
+                    response.getCode(),
+                    sessionService.getCurrentCode(request.getPuzzleId(), request.getUserId())
+                );
+
+                return ResponseEntity.ok(solveResponse);
             })
             .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/reset")
-    public ResponseEntity<Map<String, Object>> resetSession(@RequestBody ResetSessionRequest request) {
+    public ResponseEntity<ApiResponse<Void>> resetSession(@RequestBody ResetSessionRequest request) {
         try {
-            // Reset the session
             sessionService.resetSession(request.getPuzzleId(), request.getUserId());
-
-            return ResponseEntity.ok(Map.of(
-                SUCCES, true,
-                MESSAGE, "Session reset successfully"
-            ));
+            return ResponseEntity.ok(new ApiResponse<>(true, "Session reset successfully"));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                SUCCES, false,
-                MESSAGE, "Failed to reset session: " + e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Failed to reset session: " + e.getMessage()));
         }
     }
 
     @PostMapping("/complete")
-    public ResponseEntity<Map<String, Object>> markCompleted(@RequestBody SessionRequest request) {
+    public ResponseEntity<ApiResponse<SessionMetricsDto>> markCompleted(@RequestBody SessionRequest request) {
         try {
-            // The markSessionCompleted method now returns the complete metrics with score details
-            Map<String, Object> results = sessionService.markSessionCompleted(request.getPuzzleId(), request.getUserId());
-
-            return ResponseEntity.ok(Map.of(
-                SUCCES, true,
-                MESSAGE, "Puzzle marked as completed",
-                "metrics", results,
-                "scoreDetails", results
-            ));
+            SessionMetricsDto metrics = sessionService.markSessionCompleted(request.getPuzzleId(), request.getUserId());
+            return ResponseEntity.ok(new ApiResponse<>(true, "Puzzle marked as completed", metrics));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                SUCCES, false,
-                MESSAGE, "Failed to mark puzzle as completed: " + e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Failed to mark puzzle as completed: " + e.getMessage()));
         }
     }
 
     @PostMapping("/start-fresh")
-    public ResponseEntity<Map<String, Object>> startFreshPuzzle(@RequestBody SessionRequest request) {
+    public ResponseEntity<ApiResponse<Void>> startFreshPuzzle(@RequestBody SessionRequest request) {
         try {
-            // Log the received request data
             logger.info("Starting fresh puzzle [puzzleId={}, userId={}]", request.getPuzzleId(), request.getUserId());
 
-            // Check for null values
             if (request.getPuzzleId() == null) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    SUCCES, false,
-                    MESSAGE, "Missing puzzleId parameter"
-                ));
+                return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Missing puzzleId parameter"));
             }
 
             if (request.getUserId() == null) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    SUCCES, false,
-                    MESSAGE, "Missing userId parameter"
-                ));
+                return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Missing userId parameter"));
             }
 
-            // Reset the session to start a fresh puzzle
             sessionService.resetSession(request.getPuzzleId(), request.getUserId());
-
-            return ResponseEntity.ok(Map.of(
-                SUCCES, true,
-                MESSAGE, "Fresh puzzle session started successfully"
-            ));
+            return ResponseEntity.ok(new ApiResponse<>(true, "Fresh puzzle session started successfully"));
         } catch (Exception e) {
-            // Enhanced error logging
             e.printStackTrace();
-
-            return ResponseEntity.badRequest().body(Map.of(
-                SUCCES, false,
-                MESSAGE, "Failed to start fresh puzzle session: " + e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Failed to start fresh puzzle session: " + e.getMessage()));
         }
     }
 
     @GetMapping("/metrics/{puzzleId}/{userId}")
-    public ResponseEntity<Map<String, Object>> getSessionMetrics(@PathVariable Integer puzzleId, @PathVariable Long userId) {
+    public ResponseEntity<ApiResponse<SessionMetricsDto>> getSessionMetrics(@PathVariable Integer puzzleId, @PathVariable Long userId) {
         try {
-            Map<String, Object> metrics = sessionService.getSessionMetrics(puzzleId, userId);
-            return ResponseEntity.ok(metrics);
+            SessionMetricsDto metrics = sessionService.getSessionMetrics(puzzleId, userId);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Metrics retrieved successfully", metrics));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                SUCCES, false,
-                MESSAGE, "Failed to get metrics: " + e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Failed to get metrics: " + e.getMessage()));
         }
     }
 

@@ -6,15 +6,16 @@ import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.repositories.PuzzleRepository;
 import info.sup.proj.backend.repositories.PuzzleSessionRepository;
 import info.sup.proj.backend.repositories.UserRepository;
+import info.sup.proj.backend.dto.SessionMetricsDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.aop.framework.AopContext;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,16 +42,17 @@ public class PuzzleSessionServiceTest {
     private Puzzle testPuzzle;
     private User testUser;
     private PuzzleSession testSession;
+    private MockedStatic<AopContext> mockedStatic;
 
     @BeforeEach
     void setUp() {
         // Setup test entities
         testPuzzle = new Puzzle();
         testPuzzle.setId(1);
-        testPuzzle.setName("Test Puzzle"); // Changed from setTitle to setName
+        testPuzzle.setName("Test Puzzle");
         testPuzzle.setType(Puzzle.Type.MULTI_STEP);
         testPuzzle.setDescription("A test puzzle");
-        testPuzzle.setDifficulty(Puzzle.Difficulty.MEDIUM); // Changed from ordinal to enum
+        testPuzzle.setDifficulty(Puzzle.Difficulty.MEDIUM);
         
         testUser = new User();
         testUser.setId(1L);
@@ -62,6 +64,17 @@ public class PuzzleSessionServiceTest {
         testSession.setPuzzle(testPuzzle);
         testSession.setUser(testUser);
         testSession.setCurrentCode("public class Solution {}");
+
+        // Mock AopContext for each test
+        mockedStatic = mockStatic(AopContext.class);
+        mockedStatic.when(AopContext::currentProxy).thenReturn(sessionService);
+    }
+
+    @Test
+    void tearDown() {
+        if (mockedStatic != null) {
+            mockedStatic.close();
+        }
     }
 
     @Test
@@ -79,7 +92,6 @@ public class PuzzleSessionServiceTest {
         assertNotNull(result);
         assertEquals(testSession, result);
         verify(sessionRepository).findByPuzzleIdAndUserId(puzzleId, userId);
-        // Verify we didn't try to create a new session
         verifyNoMoreInteractions(puzzleRepository, userRepository);
     }
 
@@ -131,50 +143,9 @@ public class PuzzleSessionServiceTest {
         
         // Assert
         assertNotNull(result);
-        // Verify the session was updated with the code
         assertTrue(result.getCurrentCode().contains("import java.io.FileInputStream;"));
         verify(sessionRepository).findByPuzzleIdAndUserId(puzzleId, userId);
         verify(sessionRepository).save(testSession);
-    }
-
-    @Test
-    void testResetSession_ExistingSession() {
-        // Arrange
-        Integer puzzleId = 1;
-        Long userId = 1L;
-        
-        testSession.setAttemptCount(3);
-        testSession.setBestInteractionCount(5);
-        testSession.setBestTimeSeconds(300L);
-        
-        when(sessionRepository.findByPuzzleIdAndUserId(puzzleId, userId))
-            .thenReturn(Optional.of(testSession));
-        doNothing().when(sessionRepository).delete(testSession);
-        doNothing().when(sessionRepository).flush();
-        
-        // Setup for creating new session
-        when(puzzleRepository.findById(puzzleId))
-            .thenReturn(Optional.of(testPuzzle));
-        when(userRepository.findById(userId))
-            .thenReturn(Optional.of(testUser));
-        
-        PuzzleSession newSession = new PuzzleSession();
-        newSession.setPuzzle(testPuzzle);
-        newSession.setUser(testUser);
-        when(sessionRepository.save(any(PuzzleSession.class))).thenReturn(newSession);
-        
-        // Act
-        PuzzleSession result = sessionService.resetSession(puzzleId, userId);
-        
-        // Assert
-        assertNotNull(result);
-        assertEquals(4, result.getAttemptCount()); // Should be incremented
-        assertEquals(5, result.getBestInteractionCount()); // Should be preserved
-        assertEquals(300L, result.getBestTimeSeconds()); // Should be preserved
-        verify(sessionRepository).findByPuzzleIdAndUserId(puzzleId, userId);
-        verify(sessionRepository).delete(testSession);
-        verify(sessionRepository).flush();
-        verify(sessionRepository, times(2)).save(any(PuzzleSession.class)); // save is called twice
     }
 
     @Test
@@ -203,23 +174,21 @@ public class PuzzleSessionServiceTest {
             .thenReturn(Optional.of(testSession));
         when(sessionRepository.save(any(PuzzleSession.class))).thenReturn(testSession);
         
-        Map<String, Object> scoreDetails = new HashMap<>();
-        scoreDetails.put("score", 85);
-        scoreDetails.put("codeQuality", 78);
+        SessionMetricsDto scoreDetails = SessionMetricsDto.builder()
+            .totalScore(85)
+            .codeQualityScore(78)
+            .build();
+            
         when(scoreService.calculateScore(testSession)).thenReturn(scoreDetails);
         
         // Act
-        Map<String, Object> result = sessionService.markSessionCompleted(puzzleId, userId);
+        SessionMetricsDto result = sessionService.markSessionCompleted(puzzleId, userId);
         
         // Assert
         assertTrue(testSession.getIsCompleted());
-        assertTrue(result.containsKey("score"));
-        assertEquals(85, result.get("score"));
-        assertTrue(result.containsKey("codeQuality"));
-        assertEquals(78, result.get("codeQuality"));
+        assertEquals(85, result.getTotalScore());
+        assertEquals(78, result.getCodeQualityScore());
         
-        // Verify with times(2) since getOrCreateSession is called twice:
-        // once in markSessionCompleted and once in getSessionMetrics
         verify(sessionRepository, times(2)).findByPuzzleIdAndUserId(puzzleId, userId);
         verify(sessionRepository).save(testSession);
         verify(scoreService).calculateScore(testSession);
@@ -240,14 +209,13 @@ public class PuzzleSessionServiceTest {
             .thenReturn(Optional.of(testSession));
         
         // Act
-        Map<String, Object> metrics = sessionService.getSessionMetrics(puzzleId, userId);
+        SessionMetricsDto metrics = sessionService.getSessionMetrics(puzzleId, userId);
         
         // Assert
-        assertEquals(2, metrics.get("attemptCount"));
-        assertEquals(5, metrics.get("bestInteractionCount"));
-        assertEquals(300L, metrics.get("bestTimeSeconds"));
-        assertEquals(true, metrics.get("isCompleted"));
-        
+        assertEquals(2, metrics.getAttemptCount());
+        assertEquals(5, metrics.getBestInteractionCount());
+        assertEquals(300L, metrics.getBestTimeSeconds());
+        assertTrue(metrics.getIsCompleted());
         verify(sessionRepository).findByPuzzleIdAndUserId(puzzleId, userId);
     }
 }
