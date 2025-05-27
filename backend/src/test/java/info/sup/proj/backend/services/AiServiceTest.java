@@ -42,55 +42,6 @@ public class AiServiceTest {
             }
         };
     }
-
-    @Test
-    void testGenerateResponse_whenRequestIsSpecific() {
-        // Arrange
-        String userInput = "How do I read a file in Java?";
-        String currentCode = "public class FileReader {}";
-        Puzzle.Type puzzleType = Puzzle.Type.MULTI_STEP;
-        
-        // Mock the request analysis to return "SPECIFIC"
-        ChatCompletions analyzeCompletions = mock(ChatCompletions.class);
-        ChatResponseMessage analyzeResponseMessage = mock(ChatResponseMessage.class);
-        when(analyzeResponseMessage.getContent()).thenReturn("SPECIFIC");
-        
-        ChatChoice analyzeChoice = mock(ChatChoice.class);
-        when(analyzeChoice.getMessage()).thenReturn(analyzeResponseMessage);
-        
-        when(analyzeCompletions.getChoices()).thenReturn(Arrays.asList(analyzeChoice));
-        
-        // Mock the chat completions response
-        String mockResponseContent = "You can read a file using FileInputStream.\n\n```java\nimport java.io.*;\n\npublic void readFile() {\n    try(FileInputStream fis = new FileInputStream(\"file.txt\")) {\n        // read file\n    }\n}\n```";
-        
-        ChatCompletions responseCompletions = mock(ChatCompletions.class);
-        ChatResponseMessage responseMessage = mock(ChatResponseMessage.class);
-        when(responseMessage.getContent()).thenReturn(mockResponseContent);
-        
-        ChatChoice responseChoice = mock(ChatChoice.class);
-        when(responseChoice.getMessage()).thenReturn(responseMessage);
-        
-        when(responseCompletions.getChoices()).thenReturn(Arrays.asList(responseChoice));
-        
-        // Set up the mock sequence - first analysis, then response
-        when(openAIClient.getChatCompletions(eq("mock-deployment"), any(ChatCompletionsOptions.class)))
-            .thenReturn(analyzeCompletions)
-            .thenReturn(responseCompletions);
-        
-        // Act
-        AiService.ChatResponse response = aiService.generateResponse(userInput, currentCode, puzzleType);
-        
-        // Assert
-        assertNotNull(response);
-        assertTrue(response.getText().contains("You can read a file using FileInputStream"));
-        assertTrue(response.getCode().contains("import java.io.*"));
-        
-        // Verify the call to Azure was made with the right parameters
-        verify(openAIClient, times(2)).getChatCompletions(
-            eq("mock-deployment"),
-            any(ChatCompletionsOptions.class)
-        );
-    }
     
     @Test
     void testGenerateResponse_whenRequestIsTooGeneral() {

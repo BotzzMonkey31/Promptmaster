@@ -169,6 +169,9 @@ public class ScoreServiceTest {
         
         puzzle.setDifficulty(Puzzle.Difficulty.HARD);
         testScoreWithDifficulty();
+
+        // Verify total number of calls after all difficulty tests
+        verify(aiService, times(3)).getCodeEvaluation(anyString(), eq(session.getCurrentCode()), eq(puzzle.getType()));
     }
     
     private void testScoreWithDifficulty() {
@@ -225,7 +228,5 @@ public class ScoreServiceTest {
         assertTrue(scoreDetails.getTotalScore() > 0);
         assertEquals(95, scoreDetails.getCorrectnessScore());
         assertEquals(90, scoreDetails.getCodeQualityScore());
-        
-        verify(aiService).getCodeEvaluation(anyString(), eq(session.getCurrentCode()), eq(puzzle.getType()));
     }
 }

@@ -7,6 +7,7 @@ import info.sup.proj.backend.repositories.PuzzleRepository;
 import info.sup.proj.backend.repositories.PuzzleSessionRepository;
 import info.sup.proj.backend.repositories.UserRepository;
 import info.sup.proj.backend.dto.SessionMetricsDto;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,7 +71,7 @@ public class PuzzleSessionServiceTest {
         mockedStatic.when(AopContext::currentProxy).thenReturn(sessionService);
     }
 
-    @Test
+    @AfterEach
     void tearDown() {
         if (mockedStatic != null) {
             mockedStatic.close();
