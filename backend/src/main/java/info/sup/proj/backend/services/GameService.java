@@ -27,7 +27,6 @@ public class GameService {
     private final ApplicationEventPublisher eventPublisher;
     private final SimpMessagingTemplate messagingTemplate;
     private final ScheduledExecutorService scheduler;
-    @Autowired
     private UserRepository userRepository;
 
     private static final String CORRECTNESS = "correctness";
@@ -40,13 +39,15 @@ public class GameService {
         AiService aiService,
         ApplicationEventPublisher eventPublisher,
         SimpMessagingTemplate messagingTemplate,
-        ScheduledExecutorService scheduler
+        ScheduledExecutorService scheduler,
+        UserRepository userRepository
     ) {
         this.puzzleRepository = puzzleRepository;
         this.aiService = aiService;
         this.eventPublisher = eventPublisher;
         this.messagingTemplate = messagingTemplate;
         this.scheduler = scheduler;
+        this.userRepository = userRepository;
     }
 
     public Game createGame(Player player1, Player player2) {
@@ -154,11 +155,8 @@ public class GameService {
         stopRoundTimer(game.getId());
         updatePlayerElo(game);
         publishGameState(game);
-        
-        // Clean up after a delay
-        scheduler.schedule(() -> {
-            activeGames.remove(game.getId());
-        }, 5, TimeUnit.MINUTES);
+
+        scheduler.schedule(() -> activeGames.remove(game.getId()), 5, TimeUnit.MINUTES);
     }
 
     public Game getGame(String gameId) {
