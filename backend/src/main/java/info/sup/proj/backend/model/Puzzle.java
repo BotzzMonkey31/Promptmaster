@@ -1,5 +1,6 @@
 package info.sup.proj.backend.model;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,6 +16,7 @@ import lombok.Setter;
 @Table(name = "puzzles")
 @Getter
 @Setter
+@JsonSerialize
 public class Puzzle {
 
     @Id

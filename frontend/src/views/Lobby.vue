@@ -224,7 +224,7 @@ export default {
 
       const progress =
         ((elo - currentThreshold.min) / (nextThreshold.min - currentThreshold.min)) * 100
-      return Math.min(Math.max(progress, 0), 100)
+      return Math.round(Math.min(Math.max(progress, 0), 100))
     },
     availablePlayers() {
       if (!this.user?.id || !this.players) return []

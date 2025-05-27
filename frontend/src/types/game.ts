@@ -28,7 +28,7 @@ export interface GameState {
   currentRound: number;
   totalRounds: number;
   currentTurn: string;
-  puzzle: Puzzle;
+  currentPuzzle: Puzzle;
   playerStatus: Record<string, PlayerStatus>;
   scores?: Record<string, number>;
   state?: 'IN_PROGRESS' | 'ENDED';
@@ -40,10 +40,11 @@ export type WebSocketMessageType =
   | 'SUBMIT_SOLUTION'
   | 'COMPLETE_PUZZLE'
   | 'FORFEIT'
-  | 'AI_RESPONSE';
+  | 'AI_RESPONSE'
+  | 'PLAYER_COMPLETION';
 
 export interface WebSocketMessage {
-  type?: WebSocketMessageType;
+  type: WebSocketMessageType;
   payload?: any;
   text?: string;
   code?: string;
@@ -54,6 +55,7 @@ export interface WebSocketMessage {
   qualityScore?: number;
   timeBonus?: number;
   playerId?: string;
+  message?: string;
 }
 
 export interface GameError {

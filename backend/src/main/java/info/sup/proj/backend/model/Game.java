@@ -12,7 +12,7 @@ public class Game {
     private final int totalRounds;
     private int currentRound;
     private String currentTurn;
-    private Puzzle puzzle;
+    private Puzzle currentPuzzle;
     private final Map<String, PlayerStatus> playerStatus;
     private GameState state;
     private long roundStartTime;
@@ -21,7 +21,7 @@ public class Game {
     public Game(String id, List<Player> players, Puzzle puzzle, int totalRounds) {
         this.id = id;
         this.players = new ArrayList<>(players);
-        this.puzzle = puzzle;
+        this.currentPuzzle = puzzle;
         this.totalRounds = totalRounds;
         this.currentRound = 1;
         this.currentTurn = players.getFirst().getId();
@@ -32,43 +32,58 @@ public class Game {
 
         // Initialize player status and code
         for (Player player : players) {
-            playerStatus.put(player.getId(), new PlayerStatus(0, false));
+            playerStatus.put(player.getId(), new PlayerStatus());
             playerCode.put(player.getId(), "");
         }
     }
 
+    public String getId() {
+        return id;
+    }
 
+    public List<Player> getPlayers() {
+        return Collections.unmodifiableList(players);
+    }
 
+    public Puzzle getCurrentPuzzle() {
+        return currentPuzzle;
+    }
+
+    public int getCurrentRound() {
+        return currentRound;
+    }
+
+    public int getTotalRounds() {
+        return totalRounds;
+    }
 
     public String getPlayerCode(String playerId) {
         return playerCode.getOrDefault(playerId, "");
     }
 
-    public Puzzle getCurrentPuzzle() {
-        return puzzle;
-    }
-
-    public void updateCurrentCode(String playerId, String code) {
-        playerCode.computeIfPresent(playerId, (k, v) -> code);
-    }
-
-
     public Map<String, PlayerStatus> getPlayerStatus() {
         return Collections.unmodifiableMap(playerStatus);
+    }
+
+    public long getRoundStartTime() {
+        return roundStartTime;
     }
 
     public boolean hasPlayer(String playerId) {
         return players.stream().anyMatch(p -> p.getId().equals(playerId));
     }
 
+    public void updateCurrentCode(String playerId, String code) {
+        PlayerStatus status = playerStatus.get(playerId);
+        if (status != null) {
+            status.setCode(code);
+        }
+    }
+
     public void updatePlayerScore(String playerId, int score) {
         PlayerStatus status = playerStatus.get(playerId);
         if (status != null) {
-            // Get the current score and add the new score
-            int currentScore = status.getScore();
-            int newScore = currentScore + score;
-            
-            status.setScore(newScore);
+            status.setScore(score);
         }
     }
 
@@ -79,22 +94,25 @@ public class Game {
         }
     }
 
+    public boolean hasPlayerCompleted(String playerId) {
+        PlayerStatus status = playerStatus.get(playerId);
+        return status != null && status.isHasCompleted();
+    }
+
     public boolean allPlayersCompleted() {
         return playerStatus.values().stream().allMatch(PlayerStatus::isHasCompleted);
     }
 
-    public void startNextRound(Puzzle newPuzzle) {
-        currentRound++;
+    public void startNextRound(Puzzle puzzle) {
+        this.currentPuzzle = puzzle;
+        this.currentRound++;
+        this.roundStartTime = System.currentTimeMillis();
         
-        puzzle = newPuzzle;
-        roundStartTime = System.currentTimeMillis();
-        
-        // Reset completion status and code for new round
-        playerStatus.values().forEach(status -> status.setHasCompleted(false));
-        players.forEach(player -> playerCode.put(player.getId(), ""));
-        
-        // Switch starting player
-        currentTurn = players.get((currentRound - 1) % players.size()).getId();
+        // Reset player status for new round
+        playerStatus.values().forEach(status -> {
+            status.setHasCompleted(false);
+            status.setCode("");
+        });
     }
 
     /**
@@ -105,7 +123,6 @@ public class Game {
      * @param roundNumber The explicit round number to set
      */
     public synchronized void startNextRoundWithExplicitNumber(Puzzle newPuzzle, int roundNumber) {
-        // Ensure the round number is valid (not less than current, not more than total)
         if (roundNumber < currentRound) {
             return;
         }
@@ -113,55 +130,46 @@ public class Game {
         if (roundNumber > totalRounds) {
             roundNumber = totalRounds;
         }
-        
-        // Force the specific round number
+
         currentRound = roundNumber;
-        
-        // Ensure we have a valid puzzle
+
         if (newPuzzle == null) {
-            if (puzzle == null) {
+            if (currentPuzzle == null) {
                 return;
             }
         } else {
-            puzzle = newPuzzle;
+            currentPuzzle = newPuzzle;
         }
-        
-        // Reset round timer
+
         roundStartTime = System.currentTimeMillis();
-        
-        // Reset player states for the new round
+
         resetPlayersForNewRound();
     }
-    
-    /**
-     * Helper method to reset player states for a new round
-     */
+
     private void resetPlayersForNewRound() {
-        // Reset completion status
-        playerStatus.values().forEach(status -> status.setHasCompleted(false));
-        
-        // Reset player code
+        playerStatus.values().forEach(status -> {
+            status.setHasCompleted(false);
+            status.setCode("");
+        });
+
         players.forEach(player -> playerCode.put(player.getId(), ""));
-        
-        // Switch starting player (round-robin)
-        if (players.isEmpty()) {
-            currentTurn = players.get((currentRound - 1) % players.size()).getId();
-        }
     }
 
     public void forfeit(String playerId) {
-        state = GameState.ENDED;
-        
-        // Set forfeiting player's score to 0 for the round
         PlayerStatus status = playerStatus.get(playerId);
         if (status != null) {
-            status.setScore(0);
             status.setHasCompleted(true);
+            status.setHasForfeit(true);
         }
+        endGame();
     }
 
     public void endGame() {
-        state = GameState.ENDED;
+        this.state = GameState.ENDED;
+    }
+
+    public boolean isEnded() {
+        return this.state == GameState.ENDED;
     }
 
     @Getter
@@ -169,10 +177,46 @@ public class Game {
     public static class PlayerStatus {
         private int score;
         private boolean hasCompleted;
+        private boolean hasForfeit;
+        private String code;
 
-        public PlayerStatus(int score, boolean hasCompleted) {
+        public PlayerStatus() {
+            this.score = 0;
+            this.hasCompleted = false;
+            this.hasForfeit = false;
+            this.code = "";
+        }
+
+        public int getScore() {
+            return score;
+        }
+
+        public void setScore(int score) {
             this.score = score;
+        }
+
+        public boolean isHasCompleted() {
+            return hasCompleted;
+        }
+
+        public void setHasCompleted(boolean hasCompleted) {
             this.hasCompleted = hasCompleted;
+        }
+
+        public boolean isHasForfeit() {
+            return hasForfeit;
+        }
+
+        public void setHasForfeit(boolean hasForfeit) {
+            this.hasForfeit = hasForfeit;
+        }
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
         }
     }
 

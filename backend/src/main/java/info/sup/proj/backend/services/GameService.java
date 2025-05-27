@@ -5,25 +5,43 @@ import info.sup.proj.backend.model.Game;
 import info.sup.proj.backend.model.Player;
 import info.sup.proj.backend.model.Puzzle;
 import info.sup.proj.backend.repositories.PuzzleRepository;
+import info.sup.proj.backend.events.GameStateChangeEvent;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class GameService {
     private final Map<String, Game> activeGames = new ConcurrentHashMap<>();
-
+    private final Map<String, ScheduledFuture<?>> gameTimers = new ConcurrentHashMap<>();
     private final PuzzleRepository puzzleRepository;
-
     private final AiService aiService;
+    private final ApplicationEventPublisher eventPublisher;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ScheduledExecutorService scheduler;
 
     private static final String CORRECTNESS = "correctness";
     private static final String QUALITY = "quality";
+    private static final int ROUND_TIME_LIMIT = 300; // 5 minutes
     private final Random r = new Random();
 
-    public GameService(PuzzleRepository puzzleRepository, AiService aiService) {
+    public GameService(
+        PuzzleRepository puzzleRepository, 
+        AiService aiService,
+        ApplicationEventPublisher eventPublisher,
+        SimpMessagingTemplate messagingTemplate,
+        ScheduledExecutorService scheduler
+    ) {
         this.puzzleRepository = puzzleRepository;
         this.aiService = aiService;
+        this.eventPublisher = eventPublisher;
+        this.messagingTemplate = messagingTemplate;
+        this.scheduler = scheduler;
     }
 
     public Game createGame(Player player1, Player player2) {
@@ -40,7 +58,91 @@ public class GameService {
         );
 
         activeGames.put(game.getId(), game);
+        startRoundTimer(game.getId());
+        publishGameState(game);
         return game;
+    }
+
+    private void startRoundTimer(String gameId) {
+        stopRoundTimer(gameId);
+        
+        ScheduledFuture<?> timer = scheduler.schedule(() -> {
+            Game game = getGame(gameId);
+            if (game != null && !game.isEnded()) {
+                handleRoundTimeout(game);
+            }
+        }, ROUND_TIME_LIMIT, TimeUnit.SECONDS);
+        
+        gameTimers.put(gameId, timer);
+    }
+
+    private void stopRoundTimer(String gameId) {
+        ScheduledFuture<?> timer = gameTimers.remove(gameId);
+        if (timer != null) {
+            timer.cancel(false);
+        }
+    }
+
+    private void handleRoundTimeout(Game game) {
+        game.getPlayers().forEach(player -> {
+            if (!game.hasPlayerCompleted(player.getId())) {
+                completePuzzle(player.getId());
+            }
+        });
+        
+        if (game.getCurrentRound() < game.getTotalRounds()) {
+            startNextRound(game.getId());
+        } else {
+            endGame(game);
+        }
+    }
+
+    public void startNextRound(String gameId) {
+        Game game = getGame(gameId);
+        if (game == null || game.isEnded()) {
+            return;
+        }
+
+        Puzzle nextPuzzle = getRandomPuzzle();
+        if (nextPuzzle == null) {
+            throw new IllegalStateException("No puzzles available for next round");
+        }
+
+        game.startNextRound(nextPuzzle);
+        startRoundTimer(gameId);
+        publishGameState(game);
+    }
+
+    public Game startNextRound(String gameId, String playerId) {
+        Game game = getGame(gameId);
+        if (game == null || !game.hasPlayer(playerId)) {
+            throw new IllegalStateException("Game not found or player not in game");
+        }
+
+        if (game.isEnded()) {
+            return game;
+        }
+
+        Puzzle nextPuzzle = getRandomPuzzle();
+        if (nextPuzzle == null) {
+            throw new IllegalStateException("No puzzles available for next round");
+        }
+
+        game.startNextRound(nextPuzzle);
+        startRoundTimer(gameId);
+        publishGameState(game);
+        return game;
+    }
+
+    private void endGame(Game game) {
+        game.endGame();
+        stopRoundTimer(game.getId());
+        publishGameState(game);
+        
+        // Clean up after a delay
+        scheduler.schedule(() -> {
+            activeGames.remove(game.getId());
+        }, 5, TimeUnit.MINUTES);
     }
 
     public Game getGame(String gameId) {
@@ -54,6 +156,7 @@ public class GameService {
         }
 
         game.updateCurrentCode(playerId, code);
+        publishGameState(game);
 
         Puzzle currentPuzzle = game.getCurrentPuzzle();
         
@@ -61,11 +164,11 @@ public class GameService {
             """
             Please evaluate this code solution for the following puzzle:
             Puzzle: %s
-            "Description: %s +
-            "Evaluate the following aspects on a scale from 0-100:
-            "1. Correctness: Does the code correctly solve the problem as described?
-            "2. Code quality: Is the code well-structured, efficient, and following best practices?
-            "Respond in JSON format: {correctness: X, quality: Y} where X and Y are scores from 0-100.""",
+            Description: %s
+            Evaluate the following aspects on a scale from 0-100:
+            1. Correctness: Does the code correctly solve the problem as described?
+            2. Code quality: Is the code well-structured, efficient, and following best practices?
+            Respond in JSON format: {correctness: X, quality: Y} where X and Y are scores from 0-100.""",
             currentPuzzle.getName(),
             currentPuzzle.getDescription()
         );
@@ -84,6 +187,7 @@ public class GameService {
         );
 
         game.updatePlayerScore(playerId, totalScore);
+        publishGameState(game);
 
         var result = new HashMap<String, Object>();
         result.put("success", true);
@@ -93,11 +197,25 @@ public class GameService {
         result.put("timeBonus", timeBonus);
         result.put("playerId", playerId);
         
-        Map<String, Object> gameState = new HashMap<>();
-        gameState.put("type", "GAME_STATE");
-        gameState.put("payload", game);
+        // Send individual score update to player
+        messagingTemplate.convertAndSendToUser(
+            playerId,
+            "/queue/game",
+            result
+        );
         
         return result;
+    }
+
+    private void publishGameState(Game game) {
+        GameStateChangeEvent event = new GameStateChangeEvent(this, game);
+        eventPublisher.publishEvent(event);
+        
+        // Broadcast game state to all players
+        messagingTemplate.convertAndSend(
+            "/topic/game/" + game.getId(),
+            Map.of("type", "GAME_STATE", "payload", game)
+        );
     }
 
     private int calculateTimeBonus(long startTime) {
@@ -157,9 +275,35 @@ public class GameService {
         }
         
         game.markPlayerCompleted(playerId);
-            if (game.allPlayersCompleted() && game.getCurrentRound() >= game.getTotalRounds()) {
-                game.endGame();
+        
+        // Send completion status to all players
+        Map<String, Object> completionStatus = new HashMap<>();
+        completionStatus.put("type", "PLAYER_COMPLETION");
+        completionStatus.put("playerId", playerId);
+        completionStatus.put("allCompleted", game.allPlayersCompleted());
+        
+        messagingTemplate.convertAndSend(
+            "/topic/game/" + game.getId(),
+            completionStatus
+        );
+        
+        publishGameState(game);
+        
+        if (game.allPlayersCompleted()) {
+            if (game.getCurrentRound() >= game.getTotalRounds()) {
+                endGame(game);
+            } else {
+                // Add a small delay before starting the next round to ensure proper synchronization
+                scheduler.schedule(() -> {
+                    Puzzle nextPuzzle = getRandomPuzzle();
+                    if (nextPuzzle != null) {
+                        game.startNextRoundWithExplicitNumber(nextPuzzle, game.getCurrentRound() + 1);
+                        startRoundTimer(game.getId());
+                        publishGameState(game);
+                    }
+                }, 2, TimeUnit.SECONDS); // Increased delay to 2 seconds for better visibility of completion status
             }
+        }
         
         return game;
     }
@@ -171,6 +315,7 @@ public class GameService {
         }
 
         game.forfeit(playerId);
+        endGame(game);
         return game;
     }
 
@@ -185,74 +330,26 @@ public class GameService {
         return new ArrayList<>(activeGames.values());
     }
 
-    private final Map<String, Boolean> roundAdvancingMap = new ConcurrentHashMap<>();
-    
-    private final Map<String, Boolean> playerNextRoundRequestMap = new ConcurrentHashMap<>();
-    
-    public synchronized Game startNextRound(String gameId, String playerId) {
-        Game game = activeGames.get(gameId);
-        if (game == null) {
-            throw new IllegalArgumentException("Game not found: " + gameId);
-        }
-        
-        if (!game.hasPlayer(playerId)) {
-            throw new IllegalArgumentException("Player is not part of this game");
-        }
-        
-        int currentRound = game.getCurrentRound();
-        int totalRounds = game.getTotalRounds();
-        
-        if (currentRound <= 0) {
-            currentRound = 1;
-        }
-        
-        if (currentRound >= totalRounds) {
-            return game;
-        }
-        
-        String roundKey = gameId + ":" + currentRound;
-        
-        String playerRequestKey = roundKey + ":" + playerId;
-        playerNextRoundRequestMap.put(playerRequestKey, true);
-        
-        if (Boolean.TRUE.equals(roundAdvancingMap.get(roundKey))) {
-            return game;
-        }
-        
-        roundAdvancingMap.put(roundKey, true);
-        
-        try {
-            if (!game.allPlayersCompleted()) {
-                for (Player player : game.getPlayers()) {
-                    game.markPlayerCompleted(player.getId());
-                }
-            }
-
-            Puzzle nextPuzzle = getRandomPuzzle();
-            if (nextPuzzle == null) {
-                throw new IllegalStateException("No puzzles available");
-            }
-            
-            int nextRound = currentRound + 1;
-            
-            if (nextRound > totalRounds) {
-                nextRound = totalRounds;
-            }
-            
-            game.startNextRoundWithExplicitNumber(nextPuzzle, nextRound);
-            
-            return game;
-        } finally {
-            roundAdvancingMap.remove(roundKey);
-        }
-    }
-
     private Puzzle getRandomPuzzle() {
         var puzzles = puzzleRepository.findAll();
         if (puzzles.isEmpty()) {
             return null;
         }
-        int randomIndex = (this.r.nextInt(puzzles.size()-1));
+        int randomIndex = (this.r.nextInt(puzzles.size()));
         return puzzles.get(randomIndex);
+    }
+
+    public Game initializeGameWithPuzzle(String gameId) {
+        Game game = getGame(gameId);
+        if (game == null) {
+            throw new IllegalStateException("Game not found: " + gameId);
+        }
+
+        if (game.getCurrentPuzzle() == null) {
+            Puzzle puzzle = getRandomPuzzle();
+            game.startNextRound(puzzle);
+        }
+
+        return game;
     }
 } 

@@ -194,7 +194,7 @@ public class MatchmakingService {
             gameStartInfo.put("opponentElo", opponentUser.getElo());
             gameStartInfo.put("rounds", game.getTotalRounds());
             gameStartInfo.put("currentRound", game.getCurrentRound());
-            gameStartInfo.put("currentPuzzleId", game.getPuzzle().getId());
+            gameStartInfo.put("currentPuzzleId", game.getCurrentPuzzle().getId());
 
             try {
                 messagingTemplate.convertAndSendToUser(

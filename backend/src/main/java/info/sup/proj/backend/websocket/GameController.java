@@ -19,21 +19,18 @@ import org.slf4j.Logger;
 public class GameController {
 
     private final GameService gameService;
-
     private final AiService aiService;
-
     private final SimpMessagingTemplate messagingTemplate;
+    private static final Logger logger = LoggerFactory.getLogger(GameController.class);
 
     private static final String GAMESTATE = "GAME_STATE";
     private static final String PAYLOAD = "payload";
     private static final String TOPICGAME = "/topic/game/";
     private static final String QUEUEGAME = "/queue/game";
     private static final String ERROR = "ERROR";
-    private static final String MESSAGE = "MESSAGE";
+    private static final String MESSAGE = "message";
     private static final String GAMEID = "gameId";
     private static final String PLAYERID = "playerId";
-
-    private static final Logger logger = LoggerFactory.getLogger(GameController.class);
 
     public GameController(GameService gameService, AiService aiService, SimpMessagingTemplate messagingTemplate) {
         this.gameService = gameService;
@@ -44,17 +41,65 @@ public class GameController {
     @MessageMapping("/game/join")
     public void handleJoin(Map<String, Object> message) {
         String gameId = message.get(GAMEID).toString();
+        String playerId = message.get(PLAYERID).toString();
+        
+        logger.info("Player {} joining game {}", playerId, gameId);
         
         Game game = gameService.getGame(gameId);
         if (game != null) {
-            Map<String, Object> gameState = new HashMap<>();
-            gameState.put("type", GAMESTATE);
-            gameState.put(PAYLOAD, game);
+            if (game.hasPlayer(playerId)) {
+                // Ensure puzzle is initialized
+                if (game.getCurrentPuzzle() == null) {
+                    logger.info("Initializing game {} with puzzle for player {}", gameId, playerId);
+                    game = gameService.initializeGameWithPuzzle(gameId);
+                }
 
-            messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
+                Map<String, Object> gameState = new HashMap<>();
+                gameState.put("type", GAMESTATE);
+                gameState.put(PAYLOAD, game);
+
+                logger.info("Sending game state to player {} with puzzle: {}", playerId, game.getCurrentPuzzle() != null ? game.getCurrentPuzzle().getName() : "null");
+
+                // First send to the joining player directly
+                messagingTemplate.convertAndSendToUser(
+                    playerId,
+                    QUEUEGAME,
+                    gameState
+                );
+                
+                // Then broadcast to all players
+                messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
+                
+                logger.info("Game state sent to player {} and broadcast to game {}", playerId, gameId);
+            } else {
+                logger.warn("Player {} attempted to join game {} but is not a participant", playerId, gameId);
+                
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("type", ERROR);
+                Map<String, String> payload = new HashMap<>();
+                payload.put(MESSAGE, "You are not part of this game");
+                errorResponse.put(PAYLOAD, payload);
+                
+                messagingTemplate.convertAndSendToUser(
+                    playerId,
+                    QUEUEGAME,
+                    errorResponse
+                );
+            }
         } else {
-            gameService.listAllGames().forEach(g -> {
-            });
+            logger.warn("Game {} not found for player {}", gameId, playerId);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("type", ERROR);
+            Map<String, String> payload = new HashMap<>();
+            payload.put(MESSAGE, "Game not found");
+            errorResponse.put(PAYLOAD, payload);
+            
+            messagingTemplate.convertAndSendToUser(
+                playerId,
+                QUEUEGAME,
+                errorResponse
+            );
         }
     }
 
@@ -76,7 +121,7 @@ public class GameController {
                     ChatResponse aiResponse = aiService.generateResponse(
                         prompt,
                         currentCode,
-                        game.getPuzzle().getType()
+                        game.getCurrentPuzzle().getType()
                     );
 
                     Map<String, Object> response = new HashMap<>();
@@ -115,7 +160,7 @@ public class GameController {
                 );
             }
         } else {
-            logger.info("GAME CONTROLLER ERROR: Game {} not found for prompt from player {} " , gameId, playerId);
+            logger.info("GAME CONTROLLER ERROR: Game {} not found for prompt from player {}", gameId, playerId);
             
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("type", ERROR);
@@ -176,25 +221,13 @@ public class GameController {
     @SendTo("/topic/game/{gameId}")
     public Game handlePuzzleCompletion(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
         String playerId = (String) message.get(PLAYERID);
-        
-        Game game = gameService.completePuzzle(playerId);
-        
-        if (game.getState() == Game.GameState.ENDED) {
-            Map<String, Object> gameState = new HashMap<>();
-            gameState.put("type", GAMESTATE);
-            gameState.put(PAYLOAD, game);
-            
-            messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
-        }
-        
-        return game;
+        return gameService.completePuzzle(playerId);
     }
 
     @MessageMapping("/game/{gameId}/forfeit")
     @SendTo("/topic/game/{gameId}")
     public Game handleForfeit(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
         String playerId = (String) message.get(PLAYERID);
-        
         return gameService.forfeitGame(playerId);
     }
 
@@ -208,15 +241,15 @@ public class GameController {
         }
         
         Game game = gameService.getGame(gameId);
-            if (game != null && game.hasPlayer(playerId)) {
-                game.updateCurrentCode(playerId, code);
-                
-                Map<String, Object> gameState = new HashMap<>();
-                gameState.put("type", GAMESTATE);
-                gameState.put(PAYLOAD, game);
-                
-                messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
-            }
+        if (game != null && game.hasPlayer(playerId)) {
+            game.updateCurrentCode(playerId, code);
+            
+            Map<String, Object> gameState = new HashMap<>();
+            gameState.put("type", GAMESTATE);
+            gameState.put(PAYLOAD, game);
+            
+            messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
+        }
     }
 
     @MessageMapping("/game/{gameId}/next-round")
