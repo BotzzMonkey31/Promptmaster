@@ -83,7 +83,7 @@ public class Game {
     public void updatePlayerScore(String playerId, int score) {
         PlayerStatus status = playerStatus.get(playerId);
         if (status != null) {
-            status.setScore(score);
+            status.setScore(status.getScore() + score);
         }
     }
 

@@ -8,6 +8,9 @@ import info.sup.proj.backend.repositories.PuzzleRepository;
 import info.sup.proj.backend.events.GameStateChangeEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import info.sup.proj.backend.model.User;
+import info.sup.proj.backend.repositories.UserRepository;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +27,8 @@ public class GameService {
     private final ApplicationEventPublisher eventPublisher;
     private final SimpMessagingTemplate messagingTemplate;
     private final ScheduledExecutorService scheduler;
+    @Autowired
+    private UserRepository userRepository;
 
     private static final String CORRECTNESS = "correctness";
     private static final String QUALITY = "quality";
@@ -97,17 +102,31 @@ public class GameService {
         }
     }
 
+    private Puzzle getNextDifferentPuzzle(Game game) {
+        Puzzle currentPuzzle = game.getCurrentPuzzle();
+        Puzzle nextPuzzle;
+        int attempts = 0;
+        do {
+            nextPuzzle = getRandomPuzzle();
+            attempts++;
+        } while (nextPuzzle != null && 
+                 currentPuzzle != null && 
+                 nextPuzzle.getId().equals(currentPuzzle.getId()) && 
+                 attempts < 5);
+        
+        if (nextPuzzle == null || (currentPuzzle != null && nextPuzzle.getId().equals(currentPuzzle.getId()))) {
+            throw new IllegalStateException("Could not find a different puzzle");
+        }
+        return nextPuzzle;
+    }
+
     public void startNextRound(String gameId) {
         Game game = getGame(gameId);
         if (game == null || game.isEnded()) {
             return;
         }
 
-        Puzzle nextPuzzle = getRandomPuzzle();
-        if (nextPuzzle == null) {
-            throw new IllegalStateException("No puzzles available for next round");
-        }
-
+        Puzzle nextPuzzle = getNextDifferentPuzzle(game);
         game.startNextRound(nextPuzzle);
         startRoundTimer(gameId);
         publishGameState(game);
@@ -123,11 +142,7 @@ public class GameService {
             return game;
         }
 
-        Puzzle nextPuzzle = getRandomPuzzle();
-        if (nextPuzzle == null) {
-            throw new IllegalStateException("No puzzles available for next round");
-        }
-
+        Puzzle nextPuzzle = getNextDifferentPuzzle(game);
         game.startNextRound(nextPuzzle);
         startRoundTimer(gameId);
         publishGameState(game);
@@ -137,6 +152,7 @@ public class GameService {
     private void endGame(Game game) {
         game.endGame();
         stopRoundTimer(game.getId());
+        updatePlayerElo(game);
         publishGameState(game);
         
         // Clean up after a delay
@@ -295,13 +311,13 @@ public class GameService {
             } else {
                 // Add a small delay before starting the next round to ensure proper synchronization
                 scheduler.schedule(() -> {
-                    Puzzle nextPuzzle = getRandomPuzzle();
+                    Puzzle nextPuzzle = getNextDifferentPuzzle(game);
                     if (nextPuzzle != null) {
                         game.startNextRoundWithExplicitNumber(nextPuzzle, game.getCurrentRound() + 1);
                         startRoundTimer(game.getId());
                         publishGameState(game);
                     }
-                }, 2, TimeUnit.SECONDS); // Increased delay to 2 seconds for better visibility of completion status
+                }, 2, TimeUnit.SECONDS);
             }
         }
         
@@ -351,5 +367,48 @@ public class GameService {
         }
 
         return game;
+    }
+
+    private void updatePlayerElo(Game game) {
+        if (game.getPlayers().size() != 2) return;
+        
+        Player player1 = game.getPlayers().get(0);
+        Player player2 = game.getPlayers().get(1);
+        
+        int score1 = game.getPlayerStatus().get(player1.getId()).getScore();
+        int score2 = game.getPlayerStatus().get(player2.getId()).getScore();
+        
+        User user1 = userRepository.findById(Long.parseLong(player1.getId()))
+            .orElseThrow(() -> new IllegalStateException("User not found: " + player1.getId()));
+        User user2 = userRepository.findById(Long.parseLong(player2.getId()))
+            .orElseThrow(() -> new IllegalStateException("User not found: " + player2.getId()));
+        
+        int eloChange;
+        if (score1 > score2) {
+            eloChange = 25;
+            user1.setElo(user1.getElo() + eloChange);
+            user2.setElo(user2.getElo() - 15);
+        } else if (score2 > score1) {
+            eloChange = 25;
+            user2.setElo(user2.getElo() + eloChange);
+            user1.setElo(user1.getElo() - 15);
+        }
+        
+        userRepository.save(user1);
+        userRepository.save(user2);
+        
+        // Notify players of ELO changes
+        for (Player player : game.getPlayers()) {
+            User user = player.getId().equals(user1.getId()) ? user1 : user2;
+            Map<String, Object> eloUpdate = new HashMap<>();
+            eloUpdate.put("type", "ELO_UPDATE");
+            eloUpdate.put("newElo", user.getElo());
+            
+            messagingTemplate.convertAndSendToUser(
+                player.getId(),
+                "/queue/game",
+                eloUpdate
+            );
+        }
     }
 } 

@@ -514,11 +514,11 @@ watch(
     console.log('AI Response watcher triggered, received:', newResponse)
 
     if (newResponse) {
-      if (newResponse.text && textBubble.value === 'What would you like to do first?') {
+
+      if (newResponse.text) {
         console.log('Updating text bubble with:', newResponse.text)
         textBubble.value = newResponse.text
       }
-
       if (editor.value) {
         let codeToUpdate = null
 
@@ -556,8 +556,7 @@ watch(
             console.error('Error updating editor:', err)
           }
         } else {
-          console.log('No valid code found in the response to update the editor')
-          console.log('Response structure:', JSON.stringify(newResponse).substring(0, 200) + '...')
+          console.log('No code to update in the response')
         }
       } else {
         console.log('Editor not initialized yet')
@@ -776,12 +775,12 @@ watch(
 
     console.log(`🔢 SCORE WATCHER: Checking scores - previous: ${prevScore}, new: ${playerScore}`)
 
-    if (playerScore > prevScore && playerScore > 0) {
+    if (playerScore > prevScore && playerScore > 0 && oldScores !== undefined) {
       console.log(`🔢 SCORE WATCHER: Score increased from ${prevScore} to ${playerScore}`)
 
       if (!showScorePopup.value) {
         const scoreData = {
-          score: playerScore,
+          score: playerScore - prevScore, // Only show the difference
           timeBonus: Math.max(20, 100 - Math.floor((300 - timeRemaining.value) / 3)),
           qualityScore: 85,
           correctnessScore: 90,
@@ -798,24 +797,25 @@ watch(
 watch(
   () => gameState.value?.playerStatus,
   (newStatus, oldStatus) => {
-    if (!newStatus || !currentPlayer.value) return
+    if (!newStatus || !currentPlayer.value || !oldStatus) return
 
     const playerStatus = newStatus[currentPlayer.value.id]
-    const oldPlayerStatus = oldStatus?.[currentPlayer.value.id]
+    const oldPlayerStatus = oldStatus[currentPlayer.value.id]
 
     if (
       playerStatus &&
-      (!oldPlayerStatus || playerStatus.score > oldPlayerStatus.score) &&
+      oldPlayerStatus &&
+      playerStatus.score > oldPlayerStatus.score &&
       playerStatus.score > 0
     ) {
       const newScore = playerStatus.score
-      const oldScore = oldPlayerStatus?.score || 0
+      const oldScore = oldPlayerStatus.score
 
       console.log(`🔢 PLAYER STATUS WATCHER: Score increased from ${oldScore} to ${newScore}`)
 
       if (!showScorePopup.value) {
         const scoreData = {
-          score: newScore,
+          score: newScore - oldScore, // Only show the difference
           timeBonus: Math.max(20, 100 - Math.floor((300 - timeRemaining.value) / 3)),
           qualityScore: 85,
           correctnessScore: 90,

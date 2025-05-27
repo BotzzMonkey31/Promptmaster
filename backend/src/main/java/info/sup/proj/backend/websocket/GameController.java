@@ -48,7 +48,6 @@ public class GameController {
         Game game = gameService.getGame(gameId);
         if (game != null) {
             if (game.hasPlayer(playerId)) {
-                // Ensure puzzle is initialized
                 if (game.getCurrentPuzzle() == null) {
                     logger.info("Initializing game {} with puzzle for player {}", gameId, playerId);
                     game = gameService.initializeGameWithPuzzle(gameId);
@@ -60,14 +59,12 @@ public class GameController {
 
                 logger.info("Sending game state to player {} with puzzle: {}", playerId, game.getCurrentPuzzle() != null ? game.getCurrentPuzzle().getName() : "null");
 
-                // First send to the joining player directly
                 messagingTemplate.convertAndSendToUser(
                     playerId,
                     QUEUEGAME,
                     gameState
                 );
                 
-                // Then broadcast to all players
                 messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
                 
                 logger.info("Game state sent to player {} and broadcast to game {}", playerId, gameId);
