@@ -2,10 +2,9 @@ package info.sup.proj.backend.services;
 
 import info.sup.proj.backend.model.Puzzle;
 import info.sup.proj.backend.model.PuzzleSession;
+import info.sup.proj.backend.dto.SessionMetricsDto;
+import info.sup.proj.backend.dto.CodeEvaluationDto;
 import org.springframework.stereotype.Service;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 public class ScoreService {
@@ -16,9 +15,7 @@ public class ScoreService {
         this.aiService = aiService;
     }
 
-    public Map<String, Object> calculateScore(PuzzleSession session) {
-        Map<String, Object> scoreDetails = new HashMap<>();
-        
+    public SessionMetricsDto calculateScore(PuzzleSession session) {
         int interactionCount = session.getInteractions().size();
         long timeSeconds = session.getBestTimeSeconds() != null 
             ? session.getBestTimeSeconds() 
@@ -30,15 +27,19 @@ public class ScoreService {
         
         boolean isSerious = interactionCount >= minInteractions && currentCode != null && !currentCode.trim().isEmpty();
         
-        int timeScore, efficiencyScore, tokenScore, correctnessScore, qualityScore;
+        int timeScore;
+        int efficiencyScore;
+        int tokenScore;
+        int correctnessScore;
+        int qualityScore;
         
         if (isSerious) {
             timeScore = calculateTimeScore(timeSeconds, puzzle.getDifficulty());
             efficiencyScore = calculateEfficiencyScore(interactionCount, puzzle.getDifficulty());
             
-            Map<String, Integer> aiEvaluation = evaluateCodeWithAi(currentCode, puzzle);
-            correctnessScore = aiEvaluation.get("correctness");
-            qualityScore = aiEvaluation.get("quality");
+            CodeEvaluationDto aiEvaluation = evaluateCodeWithAi(currentCode, puzzle);
+            correctnessScore = aiEvaluation.getCorrectness();
+            qualityScore = aiEvaluation.getQuality();
             tokenScore = calculateTokenScore(interactionCount, puzzle.getDifficulty());
         } else {
             timeScore = 0;
@@ -64,36 +65,26 @@ public class ScoreService {
         
         int totalScore = hasFailed ? 0 : calculatedScore;
         
-        scoreDetails.put("totalScore", totalScore);
-        scoreDetails.put("hasFailed", hasFailed);
-        scoreDetails.put("timeScore", timeScore);
-        scoreDetails.put("efficiencyScore", efficiencyScore);
-        scoreDetails.put("tokenScore", tokenScore);
-        scoreDetails.put("correctnessScore", correctnessScore);
-        scoreDetails.put("codeQualityScore", qualityScore);
-        
-        scoreDetails.put("timeSeconds", timeSeconds);
-        scoreDetails.put("interactionCount", interactionCount);
-        
-        return scoreDetails;
+        return SessionMetricsDto.builder()
+            .totalScore(totalScore)
+            .hasFailed(hasFailed)
+            .timeScore(timeScore)
+            .efficiencyScore(efficiencyScore)
+            .tokenScore(tokenScore)
+            .correctnessScore(correctnessScore)
+            .codeQualityScore(qualityScore)
+            .timeSeconds(timeSeconds)
+            .interactionCount(interactionCount)
+            .build();
     }
     
     private int calculateTimeScore(long seconds, Puzzle.Difficulty difficulty) {
-        long expectedTime;
-        switch (difficulty) {
-            case Easy:
-                expectedTime = 600;
-                break;
-            case Medium:
-                expectedTime = 450;
-                break;
-            case Hard:
-                expectedTime = 300;
-                break;
-            default:
-                expectedTime = 450;
-        }
-        
+        long expectedTime = switch (difficulty) {
+            case EASY -> 600;
+            case MEDIUM -> 450;
+            case HARD -> 300;
+        };
+
         if (seconds <= expectedTime / 4) {
             return 100;
         } else if (seconds <= expectedTime / 2) {
@@ -114,21 +105,12 @@ public class ScoreService {
     }
     
     private int calculateEfficiencyScore(int interactionCount, Puzzle.Difficulty difficulty) {
-        int expectedInteractions;
-        switch (difficulty) {
-            case Easy:
-                expectedInteractions = 9;
-                break;
-            case Medium:
-                expectedInteractions = 6;
-                break;
-            case Hard:
-                expectedInteractions = 4;
-                break;
-            default:
-                expectedInteractions = 6;
-        }
-        
+        int expectedInteractions = switch (difficulty) {
+            case EASY -> 9;
+            case MEDIUM -> 6;
+            case HARD -> 4;
+        };
+
         if (interactionCount <= expectedInteractions / 3) {
             return 100;
         } else if (interactionCount <= expectedInteractions / 2) {
@@ -149,21 +131,12 @@ public class ScoreService {
     }
 
     private int calculateTokenScore(int interactionCount, Puzzle.Difficulty difficulty) {
-        int expectedTokenUsage;
-        switch (difficulty) {
-            case Easy:
-                expectedTokenUsage = 12;
-                break;
-            case Medium:
-                expectedTokenUsage = 8;
-                break;
-            case Hard:
-                expectedTokenUsage = 5;
-                break;
-            default:
-                expectedTokenUsage = 8;
-        }
-        
+        int expectedTokenUsage = switch (difficulty) {
+            case EASY -> 12;
+            case MEDIUM -> 8;
+            case HARD -> 5;
+        };
+
         if (interactionCount <= expectedTokenUsage / 3) {
             return 100;
         } else if (interactionCount <= expectedTokenUsage / 2) {
@@ -185,74 +158,70 @@ public class ScoreService {
         }
     }
     
-    private Map<String, Integer> evaluateCodeWithAi(String code, Puzzle puzzle) {
-        Map<String, Integer> scores = new HashMap<>();
-        
+    private CodeEvaluationDto evaluateCodeWithAi(String code, Puzzle puzzle) {
         try {
             String evaluationPrompt = createEvaluationPrompt(code, puzzle);
-            
             String evaluationResponse = aiService.getCodeEvaluation(evaluationPrompt, code, puzzle.getType());
-            
-            scores = parseAiEvaluation(evaluationResponse);
+            return parseAiEvaluation(evaluationResponse, puzzle.getType() == Puzzle.Type.BY_PASS);
         } catch (Exception e) {
-            // More lenient default scores for BY_PASS puzzles
-            if (puzzle.getType() == Puzzle.Type.BY_PASS) {
-                scores.put("correctness", 85);
-                scores.put("quality", 80);
-            } else {
-                scores.put("correctness", 75);
-                scores.put("quality", 70);
-            }
+            return getDefaultEvaluation(puzzle.getType() == Puzzle.Type.BY_PASS);
         }
-        
-        // Ensure minimum scores for BY_PASS puzzles
-        if (puzzle.getType() == Puzzle.Type.BY_PASS) {
-            scores.put("correctness", Math.max(scores.getOrDefault("correctness", 85), 85));
-            scores.put("quality", Math.max(scores.getOrDefault("quality", 80), 80));
-        }
-        
-        return scores;
+    }
+    
+    private CodeEvaluationDto getDefaultEvaluation(boolean isByPassPuzzle) {
+        return CodeEvaluationDto.builder()
+            .correctness(isByPassPuzzle ? 85 : 75)
+            .quality(isByPassPuzzle ? 80 : 70)
+            .build();
     }
     
     private String createEvaluationPrompt(String code, Puzzle puzzle) {
         return String.format(
-            "Please evaluate this code solution for the following puzzle:\n" +
-            "Puzzle: %s\n" +
-            "Description: %s\n\n" +
-            "Evaluate the following aspects on a scale from 0-100:\n" +
-            "1. Correctness: Does the code correctly solve the problem as described?\n" +
-            "2. Code quality: Is the code well-structured, efficient, and following best practices?\n\n" +
-            "Respond in JSON format: {\"correctness\": X, \"quality\": Y} where X and Y are scores from 0-100.",
+            """
+            Please evaluate this code solution for the following puzzle:
+            Puzzle: %s
+            Description: %s
+            Code: %s
+            Evaluate the following aspects on a scale from 0-100:
+            1. Correctness: Does the code correctly solve the problem as described?
+            2. Code quality: Is the code well-structured, efficient, and following best practices?
+            Respond in JSON format: {correctness: X, quality: Y} where X and Y are scores from 0-100.""",
             puzzle.getName(),
-            puzzle.getDescription()
+            puzzle.getDescription(),
+            code
         );
     }
     
-    private Map<String, Integer> parseAiEvaluation(String evaluationResponse) {
-        Map<String, Integer> result = new HashMap<>();
-        
+    private CodeEvaluationDto parseAiEvaluation(String evaluationResponse, boolean isByPassPuzzle) {
         try {
+            int correctness = 75;
+            int quality = 70;
+            
             if (evaluationResponse.contains("\"correctness\":")) {
                 int correctnessIndex = evaluationResponse.indexOf("\"correctness\":");
                 int commaIndex = evaluationResponse.indexOf(",", correctnessIndex);
                 String correctnessStr = evaluationResponse.substring(correctnessIndex + 14, commaIndex).trim();
-                result.put("correctness", Integer.parseInt(correctnessStr));
+                correctness = Integer.parseInt(correctnessStr);
             }
             
             if (evaluationResponse.contains("\"quality\":")) {
                 int qualityIndex = evaluationResponse.indexOf("\"quality\":");
                 int endIndex = evaluationResponse.indexOf("}", qualityIndex);
                 String qualityStr = evaluationResponse.substring(qualityIndex + 10, endIndex).trim();
-                result.put("quality", Integer.parseInt(qualityStr));
+                quality = Integer.parseInt(qualityStr);
             }
+
+            if (isByPassPuzzle) {
+                correctness = Math.max(correctness, 85);
+                quality = Math.max(quality, 80);
+            }
+            
+            return CodeEvaluationDto.builder()
+                .correctness(correctness)
+                .quality(quality)
+                .build();
         } catch (Exception e) {
-            result.put("correctness", 75);
-            result.put("quality", 70);
+            return getDefaultEvaluation(isByPassPuzzle);
         }
-        
-        if (!result.containsKey("correctness")) result.put("correctness", 75);
-        if (!result.containsKey("quality")) result.put("quality", 70);
-        
-        return result;
     }
 }

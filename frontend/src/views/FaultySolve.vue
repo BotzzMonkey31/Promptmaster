@@ -334,19 +334,24 @@ async function markCompleted() {
     });
 
     if (response.data.success) {
-      metrics.value = response.data.metrics;
+      console.log('Complete response:', response.data);
+
+      metrics.value = response.data.data;
       textBubble.value = "Congratulations! You've completed this puzzle! 🎉";
 
+      const metricsData = response.data.data || {};
+      console.log('Metrics data:', metricsData);
+
       scoreDetails.value = {
-        totalScore: response.data.scoreDetails.totalScore || 0,
-        timeScore: response.data.scoreDetails.timeScore || 0,
-        efficiencyScore: response.data.scoreDetails.efficiencyScore || 0,
-        tokenScore: response.data.scoreDetails.tokenScore || 0,
-        correctnessScore: response.data.scoreDetails.correctnessScore || 0,
-        codeQualityScore: response.data.scoreDetails.codeQualityScore || 0,
-        timeSeconds: response.data.scoreDetails.timeSeconds || 0,
-        interactionCount: response.data.scoreDetails.interactionCount || 0,
-        hasFailed: response.data.scoreDetails.hasFailed || false
+        totalScore: metricsData.totalScore || 0,
+        timeScore: metricsData.timeScore || 0,
+        efficiencyScore: metricsData.efficiencyScore || 0,
+        tokenScore: metricsData.tokenScore || 0,
+        correctnessScore: metricsData.correctnessScore || 0,
+        codeQualityScore: metricsData.codeQualityScore || 0,
+        timeSeconds: metricsData.timeSeconds || 0,
+        interactionCount: metricsData.interactionCount || 0,
+        hasFailed: metricsData.hasFailed || false
       };
 
       await updateUserElo(userId, scoreDetails.value.totalScore);

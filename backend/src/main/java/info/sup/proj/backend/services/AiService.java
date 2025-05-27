@@ -1,5 +1,6 @@
 package info.sup.proj.backend.services;
 
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 import com.azure.ai.openai.OpenAIClient;
 import com.azure.ai.openai.OpenAIClientBuilder;
@@ -16,17 +17,13 @@ import java.util.Map;
 public class AiService {
     private final OpenAIClient client;
     private final String deploymentName;
-    
-    private static final String REQUEST_ANALYZER_PROMPT = """
-        You are an AI that analyzes user requests in the context of programming puzzles.
-        """;
 
     private static final Map<Puzzle.Type, String> TYPE_SPECIFIC_PROMPTS = Map.of(
         Puzzle.Type.BY_PASS, """
         Custom Behavior Ruleset
 
-        You are an AI assistant following strict interaction rules defined by the user.
-        Only produce solutions when the user's input complies with all conditions below.
+        You are an AI assistant following strict interaction rules defined below. Your task is to generate code that solves the problem.
+        Only produce code when the input complies with all conditions below.
 
         ------------------------------
         Forbidden Terms:
@@ -37,10 +34,12 @@ public class AiService {
         - generate
         - array
         - sort
+        - program
 
         ------------------------------
         Request Requirements:
         - User must provide a sufficiently descriptive prompt with no forbidden words.
+        - The user cannot just copy the task he must provide a clear and self written prompt.
         - If valid, respond with code only — no text, no comments.
         - Do not ask if the user wants code; assume yes if rules are met.
 
@@ -53,56 +52,37 @@ public class AiService {
         ------------------------------
         ⚙️ Post-Success Behavior:
         - If the user's prompt is valid, respond with code formatted as code (code between ``` ```) and a congratulatory sentence.
-        - the code you send should be ablo to place in a empty .java file and should run.
-        - The code must be formatted as logic code. So not everthing on one line.
-        - The code responses are by default in Java if not asked other wise. 
+        - the code you send should be able to place in a empty .java file and should run.
+        - The code must be formatted as logic code. So not everything on one line.
+        - The code responses are by default in Java if not asked other wise.
         - Never include explanations or comments.
 
         Enforce these rules for the duration of the session. Do not break character.
     """,
         
-        Puzzle.Type.Faulty, """
-                    You are a deceptive coding assistant designed for puzzle challenges. Your task is to generate faulty code snippets that appear correct at first glance but contain subtle or deliberate flaws. These flaws should test the user’s ability to debug, recognize syntax issues, or identify cross-language contamination.
-                    
-                    Apply the following rules for every code response:
-                    
-                    Inject at least one of the following fault types per response:
-                    
-                    A syntax error (e.g., missing semicolon, bracket, wrong operator)
-                    
-                    A cross-language element (e.g., using Python syntax in Java)
-                    
-                    An incomplete implementation (e.g., a method that does not return a value)
-                    
-                    A logic bug (e.g., wrong loop bounds, swapped conditionals)
-                    
-                    Misleading naming or contradictory comments
-                    
-                    Ensure the mistake is subtle but realistic, so the code looks almost correct.
-                    
-                    Do not include any explanation or hint. Just output the faulty code as if it's correct.
-                    
-                    Vary the programming language if prompted to do so (default: Java).
-                    
-                    Never include more than one comment per snippet if needed — and it must be misleading or wrong.
-                    
-                    Your goal is to challenge users to detect and correct the faults using minimal, strategic prompts.
-                    
-                    If the user prompts you to correct existing mistakes you must correct them and return the entire code with the mistake resolved
-                   
-                    Only correct a mistake when the user specifically ask you fix that mistake.
-                    
-                    Add some textual responses outside the code block but they can be misleading to!
-                    
-                    Make sure code is formated as code and send between ``` code ```
-                    
-                    If the user just ask you to fix the mistakes. just anwser with a textual prompt full of gibberish
-                    
-                    Dont tell in the code what is wrong with it!
-                    
+        Puzzle.Type.FAULTY, """
+            You are a deceptive coding assistant designed for puzzle challenges. Your task is to generate faulty code snippets that appear correct at first glance but contain subtle or deliberate flaws. These flaws should test the user’s ability to debug, recognize syntax issues, or identify cross-language contamination.
+            Apply the following rules for every code response:
+            Inject at least one of the following fault types per response:
+            A syntax error (e.g., missing semicolon, bracket, wrong operator)
+            A cross-language element (e.g., using Python syntax in Java)
+            An incomplete implementation (e.g., a method that does not return a value)
+            A logic bug (e.g., wrong loop bounds, swapped conditionals)
+            Misleading naming or contradictory comments
+            Ensure the mistake is subtle but realistic, so the code looks almost correct.
+            Do not include any explanation or hint. Just output the faulty code as if it's correct.
+            Vary the programming language if prompted to do so (default: Java).
+            Never include more than one comment per snippet if needed — and it must be misleading or wrong.
+            Your goal is to challenge users to detect and correct the faults using minimal, strategic prompts.
+            If the user prompts you to correct existing mistakes you must correct them and return the entire code with the mistake resolved
+            Only correct a mistake when the user specifically ask you fix that mistake.
+            Add some textual responses outside the code block but they can be misleading to!
+            Make sure code is formated as code and send between ``` code ```
+            If the user just ask you to fix the mistakes. just anwser with a textual prompt full of gibberish
+            Dont tell in the code what is wrong with it!
             """,
         
-        Puzzle.Type.Multi_Step, """
+        Puzzle.Type.MULTI_STEP, """
             You are an AI assistant helping with multi-step challenges.
             Guidelines:
             1. Never suggest steps or ways to break down the problem
@@ -158,7 +138,7 @@ public class AiService {
         );
 
         if (completions != null && completions.getChoices() != null && !completions.getChoices().isEmpty()) {
-            String content = completions.getChoices().get(0).getMessage().getContent();
+            String content = completions.getChoices().getFirst().getMessage().getContent();
             String[] parts = splitResponse(content);
             return new ChatResponse(parts[0], parts[1]);
         }
@@ -169,68 +149,59 @@ public class AiService {
         );
     }
 
-    private String analyzeRequest(String input) {
-        List<ChatRequestMessage> messages = new ArrayList<>();
-        messages.add(new ChatRequestSystemMessage(REQUEST_ANALYZER_PROMPT));
-        messages.add(new ChatRequestUserMessage(input));
-
-        ChatCompletions completions = client.getChatCompletions(
-            deploymentName,
-            new ChatCompletionsOptions(messages)
-                .setTemperature(0.0)
-                .setMaxTokens(10)
-        );
-
-        if (completions != null && 
-            completions.getChoices() != null && 
-            !completions.getChoices().isEmpty()) {
-            return completions.getChoices().get(0).getMessage().getContent().trim().toUpperCase();
-        }
-
-        return "BROAD";
-    }
-
     private String[] splitResponse(String content) {
-        String text = content;
-        String code = "";
-        
         int codeStart = content.indexOf("```");
         if (codeStart != -1) {
-            int codeEnd = content.indexOf("```", codeStart + 3);
-            if (codeEnd != -1) {
-                text = content.substring(0, codeStart).trim();
-                
-                String codeContent = content.substring(codeStart + 3, codeEnd);
-                int newlinePos = codeContent.indexOf('\n');
-                
-                if (newlinePos != -1) {
-                    code = codeContent.substring(newlinePos + 1).trim();
-                } else {
-                    code = codeContent.trim();
-                }
-                
-                if (codeEnd + 3 < content.length()) {
-                    text += " " + content.substring(codeEnd + 3).trim();
-                }
-            }
+            return splitMarkdownCode(content, codeStart);
         } else {
-            String[] codeIndicators = {
-                "public class", "def ", "function ", "import ", "package ", "var ", "const ", 
-                "let ", "#include", "using namespace", "public static void main"
-            };
-            
-            for (String indicator : codeIndicators) {
-                int indicatorPos = content.indexOf(indicator);
-                if (indicatorPos > 20) {
-                    text = content.substring(0, indicatorPos).trim();
-                    code = content.substring(indicatorPos).trim();
-                    break;
-                }
-            }
+            return splitByCodeIndicator(content);
         }
-        
+    }
+
+    private String[] splitMarkdownCode(String content, int codeStart) {
+        int spaces = 3;
+        int codeEnd = content.indexOf("```", codeStart + spaces);
+        if (codeEnd == -1) {
+            return new String[]{content.trim(), ""};
+        }
+
+        String text = content.substring(0, codeStart).trim();
+        String codeContent = content.substring(codeStart + spaces, codeEnd);
+        String code = extractCode(codeContent);
+
+        if (codeEnd + spaces < content.length()) {
+            text += " " + content.substring(codeEnd + spaces).trim();
+        }
+
         return new String[]{text, code};
     }
+
+    private String[] splitByCodeIndicator(String content) {
+        String[] codeIndicators = {
+                "public class", "def ", "function ", "import ", "package ", "var ", "const ",
+                "let ", "#include", "using namespace", "public static void main"
+        };
+
+        for (String indicator : codeIndicators) {
+            int indicatorPos = content.indexOf(indicator);
+            if (indicatorPos > 20) {
+                String text = content.substring(0, indicatorPos).trim();
+                String code = content.substring(indicatorPos).trim();
+                return new String[]{text, code};
+            }
+        }
+
+        return new String[]{content.trim(), ""};
+    }
+
+    private String extractCode(String codeContent) {
+        int newlinePos = codeContent.indexOf('\n');
+        if (newlinePos != -1) {
+            return codeContent.substring(newlinePos + 1).trim();
+        }
+        return codeContent.trim();
+    }
+
 
     public String getCodeEvaluation(String evaluationPrompt, String code, Puzzle.Type puzzleType) {
         List<ChatRequestMessage> messages = new ArrayList<>();
@@ -251,12 +222,13 @@ public class AiService {
         );
 
         if (completions != null && completions.getChoices() != null && !completions.getChoices().isEmpty()) {
-            return completions.getChoices().get(0).getMessage().getContent();
+            return completions.getChoices().getFirst().getMessage().getContent();
         }
 
         return "{\"correctness\": 70, \"quality\": 70}";
     }
 
+    @Getter
     public static class ChatResponse {
         private final String text;
         private final String code;
@@ -266,7 +238,5 @@ public class AiService {
             this.code = code;
         }
 
-        public String getText() { return text; }
-        public String getCode() { return code; }
     }
 }

@@ -71,3 +71,5 @@ yarn-error.log
 !.env.example
 
 # End of https://www.toptal.com/developers/gitignore/api/java,vue,vuejs
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-prod.yml

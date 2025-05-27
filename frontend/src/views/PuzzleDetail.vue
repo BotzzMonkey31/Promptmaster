@@ -62,9 +62,7 @@
             <p class="text-gray-600">{{ solution.description }}</p>
           </div>
         </div>
-        <div v-else class="text-gray-600">
-          No solutions found for this puzzle yet.
-        </div>
+        <div v-else class="text-gray-600">No solutions found for this puzzle yet.</div>
       </div>
     </div>
   </div>
@@ -94,24 +92,26 @@ export default defineComponent({
     difficultyClass(difficulty: string) {
       return (
         {
-          Easy: 'bg-green-600',
-          Medium: 'bg-yellow-500',
-          Hard: 'bg-red-600',
+          EASY: 'bg-green-600',
+          MEDIUM: 'bg-yellow-500',
+          HARD: 'bg-red-600',
         }[difficulty] || 'bg-gray-500'
       )
     },
     typeClass(type: string) {
       if (!type) return 'bg-gray-500'
 
-      return {
-        'BY_PASS': 'bg-black',
-        Faulty: 'bg-blue-900',
-        'Multi_Step': 'bg-blue-400',
-      }[type] || 'bg-gray-500'
+      return (
+        {
+          BY_PASS: 'bg-black',
+          FAULTY: 'bg-blue-900',
+          MULTI_STEP: 'bg-blue-400',
+        }[type] || 'bg-gray-500'
+      )
     },
     formatType(type: string) {
       if (type === 'BY_PASS') return 'Bypass'
-      if (type === 'Multi_Step') return 'Multi-Step'
+      if (type === 'MULTI_STEP') return 'Multi-Step'
       return type
     },
     startSolving() {
@@ -126,7 +126,7 @@ export default defineComponent({
         this.puzzle = response.data
 
         this.loadInstructionsAndTips()
-        this.loadSolutions(puzzleIdString)
+        this.loadSolutions()
       } catch (error) {
         console.error('Error fetching puzzle details:', error)
       }
@@ -172,7 +172,7 @@ export default defineComponent({
         ]
       }
     },
-    async loadSolutions(puzzleId: string) {
+    async loadSolutions() {
       try {
         this.solutions = [
           {

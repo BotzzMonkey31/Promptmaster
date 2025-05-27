@@ -25,7 +25,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         ChatMessage chatMessage = objectMapper.readValue(message.getPayload(), ChatMessage.class);
         String messageJson = objectMapper.writeValueAsString(chatMessage);
 
-        // Broadcast to all connected sessions
         for (WebSocketSession webSocketSession : sessions.values()) {
             if (webSocketSession.isOpen()) {
                 webSocketSession.sendMessage(new TextMessage(messageJson));

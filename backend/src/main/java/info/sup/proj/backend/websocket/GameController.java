@@ -1,10 +1,10 @@
 package info.sup.proj.backend.websocket;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import org.springframework.beans.factory.annotation.Autowired;
 import info.sup.proj.backend.services.GameService;
 import info.sup.proj.backend.services.AiService;
 import info.sup.proj.backend.model.Game;
@@ -13,43 +13,97 @@ import java.util.Map;
 import java.util.HashMap;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.slf4j.Logger;
 
 @Controller
 public class GameController {
 
-    @Autowired
-    private GameService gameService;
+    private final GameService gameService;
+    private final AiService aiService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private static final Logger logger = LoggerFactory.getLogger(GameController.class);
 
-    @Autowired
-    private AiService aiService;
+    private static final String GAMESTATE = "GAME_STATE";
+    private static final String PAYLOAD = "payload";
+    private static final String TOPICGAME = "/topic/game/";
+    private static final String QUEUEGAME = "/queue/game";
+    private static final String ERROR = "ERROR";
+    private static final String MESSAGE = "message";
+    private static final String GAMEID = "gameId";
+    private static final String PLAYERID = "playerId";
 
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
+    public GameController(GameService gameService, AiService aiService, SimpMessagingTemplate messagingTemplate) {
+        this.gameService = gameService;
+        this.aiService = aiService;
+        this.messagingTemplate = messagingTemplate;
+    }
 
     @MessageMapping("/game/join")
     public void handleJoin(Map<String, Object> message) {
-        String gameId = message.get("gameId").toString();
-        String playerId = message.get("playerId").toString();
-        String username = message.get("username").toString();
-        String picture = message.get("picture") != null ? message.get("picture").toString() : null;
+        String gameId = message.get(GAMEID).toString();
+        String playerId = message.get(PLAYERID).toString();
+        
+        logger.info("Player {} joining game {}", playerId, gameId);
         
         Game game = gameService.getGame(gameId);
         if (game != null) {
-            Map<String, Object> gameState = new HashMap<>();
-            gameState.put("type", "GAME_STATE");
-            gameState.put("payload", game);
+            if (game.hasPlayer(playerId)) {
+                if (game.getCurrentPuzzle() == null) {
+                    logger.info("Initializing game {} with puzzle for player {}", gameId, playerId);
+                    game = gameService.initializeGameWithPuzzle(gameId);
+                }
 
-            messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+                Map<String, Object> gameState = new HashMap<>();
+                gameState.put("type", GAMESTATE);
+                gameState.put(PAYLOAD, game);
+
+                logger.info("Sending game state to player {} with puzzle: {}", playerId, game.getCurrentPuzzle() != null ? game.getCurrentPuzzle().getName() : "null");
+
+                messagingTemplate.convertAndSendToUser(
+                    playerId,
+                    QUEUEGAME,
+                    gameState
+                );
+                
+                messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
+                
+                logger.info("Game state sent to player {} and broadcast to game {}", playerId, gameId);
+            } else {
+                logger.warn("Player {} attempted to join game {} but is not a participant", playerId, gameId);
+                
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("type", ERROR);
+                Map<String, String> payload = new HashMap<>();
+                payload.put(MESSAGE, "You are not part of this game");
+                errorResponse.put(PAYLOAD, payload);
+                
+                messagingTemplate.convertAndSendToUser(
+                    playerId,
+                    QUEUEGAME,
+                    errorResponse
+                );
+            }
         } else {
-            gameService.listAllGames().forEach(g -> {
-            });
+            logger.warn("Game {} not found for player {}", gameId, playerId);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("type", ERROR);
+            Map<String, String> payload = new HashMap<>();
+            payload.put(MESSAGE, "Game not found");
+            errorResponse.put(PAYLOAD, payload);
+            
+            messagingTemplate.convertAndSendToUser(
+                playerId,
+                QUEUEGAME,
+                errorResponse
+            );
         }
     }
 
     @MessageMapping("/game/prompt")
     public void handlePrompt(Map<String, Object> message) {
-        String gameId = message.get("gameId").toString();
-        String playerId = message.get("playerId").toString();
+        String gameId = message.get(GAMEID).toString();
+        String playerId = message.get(PLAYERID).toString();
         String prompt = message.get("prompt").toString();
 
         Game game = gameService.getGame(gameId);
@@ -64,7 +118,7 @@ public class GameController {
                     ChatResponse aiResponse = aiService.generateResponse(
                         prompt,
                         currentCode,
-                        game.getPuzzle().getType()
+                        game.getCurrentPuzzle().getType()
                     );
 
                     Map<String, Object> response = new HashMap<>();
@@ -74,7 +128,7 @@ public class GameController {
 
                     messagingTemplate.convertAndSendToUser(
                         playerId,
-                        "/queue/game",
+                        QUEUEGAME,
                         response
                     );
                 } catch (Exception e) {
@@ -85,35 +139,35 @@ public class GameController {
                     
                     messagingTemplate.convertAndSendToUser(
                         playerId,
-                        "/queue/game",
+                        QUEUEGAME,
                         errorResponse
                     );
                 }
             } else {
                 Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("type", "ERROR");
+                errorResponse.put("type", ERROR);
                 Map<String, String> payload = new HashMap<>();
-                payload.put("message", "You are not part of this game");
-                errorResponse.put("payload", payload);
+                payload.put(MESSAGE, "You are not part of this game");
+                errorResponse.put(PAYLOAD, payload);
                 
                 messagingTemplate.convertAndSendToUser(
                     playerId,
-                    "/queue/game",
+                    QUEUEGAME,
                     errorResponse
                 );
             }
         } else {
-            System.out.println("GAME CONTROLLER ERROR: Game " + gameId + " not found for prompt from player " + playerId);
+            logger.info("GAME CONTROLLER ERROR: Game {} not found for prompt from player {}", gameId, playerId);
             
             Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("type", "ERROR");
+            errorResponse.put("type", ERROR);
             Map<String, String> payload = new HashMap<>();
-            payload.put("message", "Game not found");
-            errorResponse.put("payload", payload);
+            payload.put(MESSAGE, "Game not found");
+            errorResponse.put(PAYLOAD, payload);
             
             messagingTemplate.convertAndSendToUser(
                 playerId,
-                "/queue/game",
+                QUEUEGAME,
                 errorResponse
             );
         }
@@ -122,7 +176,7 @@ public class GameController {
     @MessageMapping("/game/{gameId}/submit")
     public void handleSubmission(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
         String code = (String) message.get("code");
-        String playerId = (String) message.get("playerId");
+        String playerId = (String) message.get(PLAYERID);
         
         if (code == null || playerId == null) {
             throw new IllegalArgumentException("Missing required parameters: code or playerId");
@@ -132,29 +186,29 @@ public class GameController {
         if (game != null && game.hasPlayer(playerId)) {
             Map<String, Object> result = gameService.submitSolution(playerId, code);
             
-            result.put("gameId", gameId);
+            result.put(GAMEID, gameId);
             
             messagingTemplate.convertAndSendToUser(
                 playerId,
-                "/queue/game",
+                QUEUEGAME,
                 result
             );
             
             Map<String, Object> gameState = new HashMap<>();
-            gameState.put("type", "GAME_STATE");
-            gameState.put("payload", game);
+            gameState.put("type", GAMESTATE);
+            gameState.put(PAYLOAD, game);
             
-            messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
+            messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
         } else {
             Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("type", "ERROR");
+            errorResponse.put("type", ERROR);
             Map<String, String> payload = new HashMap<>();
-            payload.put("message", "Game not found or player not in game");
-            errorResponse.put("payload", payload);
+            payload.put(MESSAGE, "Game not found or player not in game");
+            errorResponse.put(PAYLOAD, payload);
             
             messagingTemplate.convertAndSendToUser(
                 playerId,
-                "/queue/game",
+                QUEUEGAME,
                 errorResponse
             );
         }
@@ -163,32 +217,20 @@ public class GameController {
     @MessageMapping("/game/{gameId}/complete")
     @SendTo("/topic/game/{gameId}")
     public Game handlePuzzleCompletion(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
-        String playerId = (String) message.get("playerId");
-        
-        Game game = gameService.completePuzzle(playerId);
-        
-        if (game.getState() == Game.GameState.ENDED) {
-            Map<String, Object> gameState = new HashMap<>();
-            gameState.put("type", "GAME_STATE");
-            gameState.put("payload", game);
-            
-            messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
-        }
-        
-        return game;
+        String playerId = (String) message.get(PLAYERID);
+        return gameService.completePuzzle(playerId);
     }
 
     @MessageMapping("/game/{gameId}/forfeit")
     @SendTo("/topic/game/{gameId}")
     public Game handleForfeit(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
-        String playerId = (String) message.get("playerId");
-        
+        String playerId = (String) message.get(PLAYERID);
         return gameService.forfeitGame(playerId);
     }
 
     @MessageMapping("/game/{gameId}/code")
     public void handleCodeUpdate(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
-        String playerId = (String) message.get("playerId");
+        String playerId = (String) message.get(PLAYERID);
         String code = (String) message.get("code");
         
         if (playerId == null || code == null) {
@@ -196,28 +238,21 @@ public class GameController {
         }
         
         Game game = gameService.getGame(gameId);
-        if (game != null) {
-            if (game.hasPlayer(playerId)) {
-                game.updateCurrentCode(playerId, code);
-                
-                Map<String, Object> gameState = new HashMap<>();
-                gameState.put("type", "GAME_STATE");
-                gameState.put("payload", game);
-                
-                messagingTemplate.convertAndSend("/topic/game/" + gameId, gameState);
-            }
+        if (game != null && game.hasPlayer(playerId)) {
+            game.updateCurrentCode(playerId, code);
+            
+            Map<String, Object> gameState = new HashMap<>();
+            gameState.put("type", GAMESTATE);
+            gameState.put(PAYLOAD, game);
+            
+            messagingTemplate.convertAndSend(TOPICGAME + gameId, gameState);
         }
     }
 
     @MessageMapping("/game/{gameId}/next-round")
     @SendTo("/topic/game/{gameId}")
     public Game handleNextRound(@Payload Map<String, Object> message, @DestinationVariable String gameId) {
-        String playerId = (String) message.get("playerId");
-        Integer currentRound = (Integer) message.get("currentRound");
-        Integer expectedNextRound = (Integer) message.get("expectedNextRound");
-        
-        if (currentRound != null && expectedNextRound != null) {
-        }
+        String playerId = (String) message.get(PLAYERID);
         
         if (playerId == null) {
             throw new IllegalArgumentException("Missing required parameter: playerId");
@@ -225,35 +260,27 @@ public class GameController {
         
         Game game = gameService.getGame(gameId);
         if (game == null) {
-            System.out.println("REQUEST ERROR: Game not found: " + gameId);
+            logger.info("REQUEST ERROR: Game not found: {}" , gameId);
             throw new IllegalArgumentException("Game not found");
         }
         
         if (!game.hasPlayer(playerId)) {
-            System.out.println("REQUEST ERROR: Player " + playerId + " is not part of game " + gameId);
+            logger.info("REQUEST ERROR: Player {} is not part of game {}" ,playerId,gameId);
             throw new IllegalArgumentException("Player is not part of this game");
         }
         
-        if (currentRound != null && game.getCurrentRound() != currentRound) {
-        }
-        
         try {
-            Game updatedGame = gameService.startNextRound(gameId, playerId);
-            
-            if (expectedNextRound != null && updatedGame.getCurrentRound() != expectedNextRound) {
-            }
-            
-            return updatedGame;
+            return gameService.startNextRound(gameId, playerId);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("type", "ERROR");
+            errorResponse.put("type", ERROR);
             Map<String, String> payload = new HashMap<>();
-            payload.put("message", "Failed to advance round: " + e.getMessage());
-            errorResponse.put("payload", payload);
+            payload.put(MESSAGE, "Failed to advance round: " + e.getMessage());
+            errorResponse.put(PAYLOAD, payload);
             
             messagingTemplate.convertAndSendToUser(
                 playerId,
-                "/queue/game",
+                QUEUEGAME,
                 errorResponse
             );
             return null;

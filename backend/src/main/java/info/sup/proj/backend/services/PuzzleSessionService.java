@@ -5,11 +5,11 @@ import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.repositories.PuzzleRepository;
 import info.sup.proj.backend.repositories.PuzzleSessionRepository;
 import info.sup.proj.backend.repositories.UserRepository;
+import info.sup.proj.backend.dto.SessionMetricsDto;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.aop.framework.AopContext;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -33,27 +33,28 @@ public class PuzzleSessionService {
     @Transactional
     public PuzzleSession getOrCreateSession(Integer puzzleId, Long userId) {
         Optional<PuzzleSession> existingSession = sessionRepository.findByPuzzleIdAndUserId(puzzleId, userId);
-        
-        if (existingSession.isPresent()) {
-            return existingSession.get();
-        }
-        
-        return puzzleRepository.findById(puzzleId)
-            .map(puzzle -> {
-                User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-                
-                PuzzleSession newSession = new PuzzleSession();
-                newSession.setPuzzle(puzzle);
-                newSession.setUser(user);
-                return sessionRepository.save(newSession);
-            })
-            .orElseThrow(() -> new IllegalArgumentException("Puzzle not found with ID: " + puzzleId));
+
+        return existingSession.orElseGet(() -> puzzleRepository.findById(puzzleId)
+                .map(puzzle -> {
+                    User user = userRepository.findById(userId)
+                            .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
+
+                    PuzzleSession newSession = new PuzzleSession();
+                    newSession.setPuzzle(puzzle);
+                    newSession.setUser(user);
+                    return sessionRepository.save(newSession);
+                })
+                .orElseThrow(() -> new IllegalArgumentException("Puzzle not found with ID: " + puzzleId)));
+
+    }
+
+    private PuzzleSessionService getProxy() {
+        return (PuzzleSessionService) AopContext.currentProxy();
     }
 
     @Transactional
     public PuzzleSession addInteraction(Integer puzzleId, Long userId, String userInput, String aiTextResponse, String aiCodeResponse) {
-        PuzzleSession session = getOrCreateSession(puzzleId, userId);
+        PuzzleSession session = getProxy().getOrCreateSession(puzzleId, userId);
         
         session.addInteraction(userInput, aiTextResponse, aiCodeResponse);
         
@@ -68,17 +69,12 @@ public class PuzzleSessionService {
         return sessionRepository.save(session);
     }
 
-    /**
-     * Helper method to create a new session
-     */
     private PuzzleSession createNewSession(Integer puzzleId, Long userId) {
         return puzzleRepository.findById(puzzleId)
             .map(puzzle -> {
-                // Get the user
                 User user = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
                 
-                // Create a fresh session
                 PuzzleSession newSession = new PuzzleSession();
                 newSession.setPuzzle(puzzle);
                 newSession.setUser(user);
@@ -87,79 +83,76 @@ public class PuzzleSessionService {
             .orElseThrow(() -> new IllegalArgumentException("Puzzle not found with ID: " + puzzleId));
     }
 
-    /**
-     * Reset a puzzle session for a specific user-puzzle combination.
-     * This allows users to start over when attempting to improve their score.
-     */
     @Transactional
-    public PuzzleSession resetSession(Integer puzzleId, Long userId) {
-        // Find existing session
+    public void resetSession(Integer puzzleId, Long userId) {
         Optional<PuzzleSession> existingSession = sessionRepository.findByPuzzleIdAndUserId(puzzleId, userId);
         
         Integer bestInteractionCount = null;
         Long bestTimeSeconds = null;
-        Integer attemptCount = 1; // Default to 1 for new sessions
+        int attemptCount = 1;
         
         if (existingSession.isPresent()) {
             PuzzleSession session = existingSession.get();
-            
-            // Save best metrics before clearing the session
+
             bestInteractionCount = session.getBestInteractionCount();
             bestTimeSeconds = session.getBestTimeSeconds();
             attemptCount = session.getAttemptCount() != null ? session.getAttemptCount() + 1 : 1;
-            
-            // Delete the existing session and flush to ensure the delete is committed
+
             sessionRepository.delete(session);
-            sessionRepository.flush(); // This ensures the delete is committed before proceeding
+            sessionRepository.flush();
         }
-        
-        // Create a new clean session
+
         PuzzleSession newSession = createNewSession(puzzleId, userId);
-        
-        // Transfer the metrics to the new session
+
         newSession.setAttemptCount(attemptCount);
         newSession.setBestInteractionCount(bestInteractionCount);
         newSession.setBestTimeSeconds(bestTimeSeconds);
-        
-        return sessionRepository.save(newSession);
+
+        sessionRepository.save(newSession);
     }
 
+    @Transactional
     public String getCurrentCode(Integer puzzleId, Long userId) {
-        return getOrCreateSession(puzzleId, userId).getCurrentCode();
+        return getProxy().getOrCreateSession(puzzleId, userId).getCurrentCode();
     }
     
-    /**
-     * Mark a puzzle session as completed and update metrics
-     * @return Map containing session metrics and score details
-     */
     @Transactional
-    public Map<String, Object> markSessionCompleted(Integer puzzleId, Long userId) {
-        PuzzleSession session = getOrCreateSession(puzzleId, userId);
+    public SessionMetricsDto markSessionCompleted(Integer puzzleId, Long userId) {
+        PuzzleSession session = getProxy().getOrCreateSession(puzzleId, userId);
         session.setIsCompleted(true);
         session.updateBestMetrics();
         sessionRepository.save(session);
         
-        // Calculate score using the ScoreService
-        Map<String, Object> scoreDetails = scoreService.calculateScore(session);
+        SessionMetricsDto scoreDetails = scoreService.calculateScore(session);
+        SessionMetricsDto metrics = getProxy().getSessionMetrics(puzzleId, userId);
         
-        // Combine metrics and score details
-        Map<String, Object> result = getSessionMetrics(puzzleId, userId);
-        result.putAll(scoreDetails);
-        
-        return result;
+        return SessionMetricsDto.builder()
+            .totalScore(scoreDetails.getTotalScore())
+            .hasFailed(scoreDetails.getHasFailed())
+            .timeScore(scoreDetails.getTimeScore())
+            .efficiencyScore(scoreDetails.getEfficiencyScore())
+            .tokenScore(scoreDetails.getTokenScore())
+            .correctnessScore(scoreDetails.getCorrectnessScore())
+            .codeQualityScore(scoreDetails.getCodeQualityScore())
+            .timeSeconds(scoreDetails.getTimeSeconds())
+            .interactionCount(scoreDetails.getInteractionCount())
+            .attemptCount(metrics.getAttemptCount())
+            .bestInteractionCount(metrics.getBestInteractionCount())
+            .bestTimeSeconds(metrics.getBestTimeSeconds())
+            .isCompleted(metrics.getIsCompleted())
+            .currentInteractionCount(metrics.getCurrentInteractionCount())
+            .build();
     }
     
-    /**
-     * Get session metrics for a user-puzzle combination
-     */
-    public Map<String, Object> getSessionMetrics(Integer puzzleId, Long userId) {
-        PuzzleSession session = getOrCreateSession(puzzleId, userId);
-        Map<String, Object> metrics = new HashMap<>();
-        metrics.put("attemptCount", session.getAttemptCount());
-        metrics.put("bestInteractionCount", session.getBestInteractionCount());
-        metrics.put("bestTimeSeconds", session.getBestTimeSeconds());
-        metrics.put("isCompleted", session.getIsCompleted());
-        metrics.put("currentInteractionCount", session.getInteractions().size());
-        return metrics;
+    @Transactional
+    public SessionMetricsDto getSessionMetrics(Integer puzzleId, Long userId) {
+        PuzzleSession session = getProxy().getOrCreateSession(puzzleId, userId);
+        return SessionMetricsDto.builder()
+            .attemptCount(session.getAttemptCount())
+            .bestInteractionCount(session.getBestInteractionCount())
+            .bestTimeSeconds(session.getBestTimeSeconds())
+            .isCompleted(session.getIsCompleted())
+            .currentInteractionCount(session.getInteractions().size())
+            .build();
     }
 }

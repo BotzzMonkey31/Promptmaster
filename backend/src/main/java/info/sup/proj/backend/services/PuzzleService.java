@@ -3,11 +3,9 @@ package info.sup.proj.backend.services;
 import info.sup.proj.backend.model.Puzzle;
 import info.sup.proj.backend.repositories.PuzzleRepository;
 import org.springframework.stereotype.Service;
-import jakarta.annotation.PostConstruct;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class PuzzleService {
@@ -28,7 +26,7 @@ public class PuzzleService {
     public List<Puzzle> getPuzzlesByType(Puzzle.Type type) {
         return puzzleRepository.findAll().stream()
                 .filter(puzzle -> puzzle.getType() == type)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public Puzzle savePuzzle(Puzzle puzzle) {

@@ -1,25 +1,22 @@
 package info.sup.proj.backend.websocket;
 
-import info.sup.proj.backend.services.MatchmakingService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import info.sup.proj.backend.services.MatchmakingService;
 import java.util.Map;
 
 @Controller
-public class GameWebSocketController {
+public class MatchmakingController {
     private final MatchmakingService matchmakingService;
-    private final ObjectMapper objectMapper;
 
-    public GameWebSocketController(MatchmakingService matchmakingService, ObjectMapper objectMapper) {
+    public MatchmakingController(MatchmakingService matchmakingService) {
         this.matchmakingService = matchmakingService;
-        this.objectMapper = objectMapper;
     }
 
     @MessageMapping("/game/join-lobby")
     public void joinLobby(@Payload Map<String, Object> message) {
-        Long userId = Long.parseLong(message.get("userId").toString());
+        Long userId = ((Number) message.get("userId")).longValue();
         matchmakingService.addPlayerToLobby(userId);
     }
 
@@ -45,9 +42,9 @@ public class GameWebSocketController {
 
     @MessageMapping("/game/challenge-player")
     public void challengePlayer(@Payload Map<String, Object> message) {
-        String challengerId = message.get("userId").toString();
+        String userId = message.get("userId").toString();
         String targetId = message.get("targetId").toString();
-        matchmakingService.challengePlayer(challengerId, targetId);
+        matchmakingService.challengePlayer(userId, targetId);
     }
 
     @MessageMapping("/game/accept-challenge")
