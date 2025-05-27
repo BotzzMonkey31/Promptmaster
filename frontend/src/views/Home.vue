@@ -2,19 +2,21 @@
   <div class="bg-gray-100 min-h-screen">
     <main class="container mx-auto py-8">
       <h2 class="text-2xl font-semibold text-center mb-6">Our puzzles</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div
           v-for="puzzle in puzzles"
           :key="puzzle.title"
-          class="bg-white p-6 shadow rounded-lg justify-center items-center"
+          class="bg-white p-6 shadow rounded-lg flex flex-col hover:shadow-xl transition-shadow duration-300"
         >
-          <img
-            src="https://picsum.photos/300/200"
-            alt="Puzzle image"
-            class="w-full h-32 object-cover"
-          />
-          <h3 class="text-lg font-semibold mt-4">{{ puzzle.title }}</h3>
-          <p class="text-gray-600 mt-2">{{ puzzle.description }}</p>
+          <div class="h-48 overflow-hidden rounded-lg mb-4">
+            <img
+              :src="puzzle.picture"
+              alt="Puzzle image"
+              class="w-full h-full object-contain bg-gray-100"
+            />
+          </div>
+          <h3 class="text-xl font-semibold">{{ puzzle.title }}</h3>
+          <p class="text-gray-600 mt-2 flex-grow">{{ puzzle.description }}</p>
         </div>
       </div>
 
@@ -48,23 +50,23 @@ export default {
           title: 'VS Mode',
           description:
             'Challenge your friends or random opponents in competitive duels. Matchmaking is based on rank. You can get any form of puzzle at random.',
-          picture: './assets/VS_Mode.png',
+          picture: '/assets/VS_Mode.PNG',
         },
         {
           title: 'BY_PASS',
           description:
             'Test your skills. You must try to bypass certain restrictions set on the prompt.',
-          picture: './assets/VS_Mode.png',
+          picture: '/assets/BYPASS.PNG',
         },
         {
           title: 'MULTI_STEP',
           description: 'Solve multi-step challenges where you build up the code step by step.',
-          picture: './assets/VS_Mode.png',
+          picture: '/assets/Step_by_Step_Puzzles.PNG',
         },
         {
           title: 'FAULTY',
           description: 'Identify and fix intentional bugs made by the LLM.',
-          picture: './assets/VS_Mode.png',
+          picture: '/assets/Faulty_Code_Generator.PNG',
         },
       ],
       rankings: [
