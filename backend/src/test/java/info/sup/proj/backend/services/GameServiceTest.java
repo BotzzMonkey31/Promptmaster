@@ -68,7 +68,8 @@ public class GameServiceTest {
             aiService,
             eventPublisher,
             messagingTemplate,
-            scheduler
+            scheduler,
+            userRepository
         );
         
         // Use reflection to inject mocks
