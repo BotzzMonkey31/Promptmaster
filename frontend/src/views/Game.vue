@@ -285,20 +285,17 @@
         </div>
       </div>
 
-      <div
-        v-if="showWaitingPopup"
-        class="fixed inset-0 flex items-center justify-center z-50"
-      >
+      <div v-if="showWaitingPopup" class="fixed inset-0 flex items-center justify-center z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50"></div>
         <div class="bg-white p-8 rounded-lg shadow-lg z-10 w-full max-w-md text-center">
           <h3 class="text-2xl font-bold mb-4">Round Complete!</h3>
           <div class="mb-6">
-            <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
+            <div
+              class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
+            ></div>
             <p class="text-gray-600">Waiting for other player to complete the round...</p>
           </div>
-          <div class="text-sm text-gray-500">
-            Your score for this round: {{ lastRoundScore }}
-          </div>
+          <div class="text-sm text-gray-500">Your score for this round: {{ lastRoundScore }}</div>
         </div>
       </div>
     </main>
@@ -336,7 +333,7 @@ const gameStore = useGameStore()
 const { gameState, currentPlayer } = storeToRefs(gameStore)
 const { markPuzzleCompleted, cleanup } = gameStore
 
-const defaultAvatar = '/default-avatar.png'
+const defaultAvatar = '/assets/BypassMascot.png'
 const editorContainer = ref<HTMLElement | null>(null)
 const editor = ref<EditorView | null>(null)
 const code = ref('')
@@ -413,7 +410,12 @@ const handleTimeout = () => {
 }
 
 const handleSubmit = async () => {
-  if (isSubmitting.value || !editor.value || !gameState.value?.currentPuzzle || !currentPlayer.value)
+  if (
+    isSubmitting.value ||
+    !editor.value ||
+    !gameState.value?.currentPuzzle ||
+    !currentPlayer.value
+  )
     return
   isSubmitting.value = true
 
@@ -442,7 +444,7 @@ const loadPuzzle = () => {
     currentRound: gameStore.gameState.currentRound,
     totalRounds: gameStore.gameState.totalRounds,
     players: gameStore.gameState.players,
-    currentTurn: gameStore.gameState.currentTurn
+    currentTurn: gameStore.gameState.currentTurn,
   })
 
   showPuzzleButton.value = false
@@ -452,7 +454,6 @@ const loadPuzzle = () => {
   // Check if editor initialization was successful
   if (!editorInit.isInitialized()) {
     console.error('📝 LOAD PUZZLE: Failed to initialize editor')
-    textBubble.value = 'Failed to initialize code editor. Please refresh the page.'
     return
   }
 }
@@ -476,7 +477,13 @@ const closeScorePopup = async () => {
 }
 
 const handlePrompt = async () => {
-  if (isPrompting.value || !gameState.value?.currentPuzzle || !currentPlayer.value || !promptInput.value) return
+  if (
+    isPrompting.value ||
+    !gameState.value?.currentPuzzle ||
+    !currentPlayer.value ||
+    !promptInput.value
+  )
+    return
   isPrompting.value = true
   textBubble.value = 'Thinking...'
 
@@ -514,7 +521,6 @@ watch(
     console.log('AI Response watcher triggered, received:', newResponse)
 
     if (newResponse) {
-
       if (newResponse.text) {
         console.log('Updating text bubble with:', newResponse.text)
         textBubble.value = newResponse.text
@@ -738,16 +744,20 @@ onMounted(async () => {
   gameStore.initializeGame(gameId, player)
 
   // Watch for game state changes
-  watch(() => gameStore.gameState, (newState) => {
-    console.log('Game state changed:', newState)
-    if (newState?.currentPuzzle) {
-      console.log('Game state received with puzzle:', newState.currentPuzzle)
-      inGame.value = true
-      loadPuzzle()
-    } else {
-      console.log('Game state received without puzzle')
-    }
-  }, { immediate: true })
+  watch(
+    () => gameStore.gameState,
+    (newState) => {
+      console.log('Game state changed:', newState)
+      if (newState?.currentPuzzle) {
+        console.log('Game state received with puzzle:', newState.currentPuzzle)
+        inGame.value = true
+        loadPuzzle()
+      } else {
+        console.log('Game state received without puzzle')
+      }
+    },
+    { immediate: true },
+  )
 })
 
 onUnmounted(() => {
