@@ -5,6 +5,8 @@ import info.sup.proj.backend.exceptions.UserAlreadyExistsException;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.model.UserRegistrationDto;
 import info.sup.proj.backend.repositories.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,8 +52,7 @@ public class UserService {
 
         return userRepository.save(user);
     }
-    
-    @Transactional
+      @Transactional
     public User updateUserElo(Long userId, Integer scoreToAdd) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
@@ -62,5 +63,19 @@ public class UserService {
         user.setElo(newElo);
         
         return userRepository.save(user);
+    }
+
+    /**
+     * Get global rankings ordered by ELO
+     */
+    public Page<User> getGlobalRankings(Pageable pageable) {
+        return userRepository.findAllByOrderByEloDesc(pageable);
+    }
+
+    /**
+     * Get local rankings by country ordered by ELO
+     */
+    public Page<User> getLocalRankings(String country, Pageable pageable) {
+        return userRepository.findByCountryOrderByEloDesc(country, pageable);
     }
 }
