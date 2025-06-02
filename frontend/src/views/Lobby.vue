@@ -27,40 +27,7 @@
         >
           {{ findingOpponent ? 'Searching...' : 'Find Random Opponent' }}
         </button>
-        <button
-          @click="toggleInviteModal"
-          class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
-        >
-          Invite a Friend
-        </button>
       </div>
-
-      <div v-if="showInviteModal" class="fixed inset-0 flex items-center justify-center z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-50" @click="toggleInviteModal"></div>
-        <div class="bg-white p-6 rounded-lg shadow-lg z-10 w-full max-w-md">
-          <h3 class="text-lg font-semibold mb-4">Invite a Friend</h3>
-          <p class="mb-4">Share this link with your friend:</p>
-          <div class="flex">
-            <input
-              type="text"
-              readonly
-              :value="inviteLink"
-              class="flex-1 border rounded-l px-3 py-2"
-            />
-            <button @click="copyInviteLink" class="bg-blue-500 text-white px-4 py-2 rounded-r">
-              Copy
-            </button>
-          </div>
-          <p v-if="linkCopied" class="text-green-600 mt-2">Link copied to clipboard!</p>
-          <button
-            @click="toggleInviteModal"
-            class="mt-4 w-full bg-gray-300 text-gray-800 px-4 py-2 rounded"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-
       <div class="flex space-x-4">
         <div class="w-1/2">
           <FriendsTab
@@ -577,15 +544,6 @@ export default {
             this.gameNotification = null
           }
         }, 5000)
-      }
-    },
-    toggleInviteModal() {
-      this.showInviteModal = !this.showInviteModal
-      this.linkCopied = false
-
-      if (this.showInviteModal) {
-        const baseUrl = window.location.origin
-        this.inviteLink = `${baseUrl}/invite?user=${this.user?.username || 'friend'}`
       }
     },
     copyInviteLink() {
