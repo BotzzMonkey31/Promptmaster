@@ -27,70 +27,52 @@
         >
           {{ findingOpponent ? 'Searching...' : 'Find Random Opponent' }}
         </button>
-        <button
-          @click="toggleInviteModal"
-          class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
-        >
-          Invite a Friend
-        </button>
       </div>
-
-      <div v-if="showInviteModal" class="fixed inset-0 flex items-center justify-center z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-50" @click="toggleInviteModal"></div>
-        <div class="bg-white p-6 rounded-lg shadow-lg z-10 w-full max-w-md">
-          <h3 class="text-lg font-semibold mb-4">Invite a Friend</h3>
-          <p class="mb-4">Share this link with your friend:</p>
-          <div class="flex">
-            <input
-              type="text"
-              readonly
-              :value="inviteLink"
-              class="flex-1 border rounded-l px-3 py-2"
-            />
-            <button @click="copyInviteLink" class="bg-blue-500 text-white px-4 py-2 rounded-r">
-              Copy
-            </button>
-          </div>
-          <p v-if="linkCopied" class="text-green-600 mt-2">Link copied to clipboard!</p>
-          <button
-            @click="toggleInviteModal"
-            class="mt-4 w-full bg-gray-300 text-gray-800 px-4 py-2 rounded"
-          >
-            Close
-          </button>
+      <div class="flex space-x-4">
+        <div class="w-1/2">
+          <FriendsTab
+            v-if="user"
+            :currentUser="user"
+            :stompClient="stompClient"
+            :challengingSomeone="challengingSomeone"
+            :onlinePlayers="players"
+            @challenge-friend="challengeFriend"
+            @notification="showNotification"
+          />
         </div>
-      </div>
-
-      <div class="bg-white p-6 shadow rounded-lg mb-6">
-        <h3 class="text-lg font-semibold mb-4">Available Players</h3>
-        <div v-if="availablePlayers.length === 0" class="text-gray-500 text-center py-4">
-          No players are currently available.
-        </div>
-        <ul v-else>
-          <li
-            v-for="player in availablePlayers"
-            :key="player.userId"
-            class="flex justify-between items-center py-3 border-b"
-          >
-            <div class="flex items-center">
-              <img
-                :src="player.picture || defaultAvatar"
-                class="w-8 h-8 rounded-full mr-3"
-                alt="Avatar"
-                @error="handleImageError"
-              />
-              <span>{{ player.username }}</span>
-              <span class="ml-2 text-sm text-gray-500">ELO: {{ player.elo }}</span>
+        <div class="w-1/2 bg-white p-6 shadow rounded-lg mb-6">
+          <h3 class="text-lg font-semibold mb-4">Available Players</h3>
+          <div class="available-players-container h-64">
+            <div v-if="availablePlayers.length === 0" class="text-gray-500 text-center py-4">
+              No players are currently available.
             </div>
-            <button
-              @click="challengePlayer(player)"
-              class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
-              :disabled="challengingSomeone"
-            >
-              Challenge
-            </button>
-          </li>
-        </ul>
+            <ul v-else class="space-y-2 overflow-y-auto h-60 pr-2">
+              <li
+                v-for="player in availablePlayers"
+                :key="player.userId"
+                class="flex justify-between items-center py-3 border-b last:border-b-0"
+              >
+                <div class="flex items-center">
+                  <img
+                    :src="player.picture || defaultAvatar"
+                    class="w-8 h-8 rounded-full mr-3"
+                    alt="Avatar"
+                    @error="handleImageError"
+                  />
+                  <span>{{ player.username }}</span>
+                  <span class="ml-2 text-sm text-gray-500">ELO: {{ player.elo }}</span>
+                </div>
+                <button
+                  @click="challengePlayer(player)"
+                  class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
+                  :disabled="challengingSomeone"
+                >
+                  Challenge
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       <div class="bg-white p-6 shadow rounded-lg">
@@ -133,6 +115,7 @@
 <script lang="ts">
 import Cookies from 'js-cookie'
 import ChatBox from '../components/ChatBox.vue'
+import FriendsTab from '../components/FriendsTab.vue'
 import apiClient from '../services/api'
 import { useRouter } from 'vue-router'
 import { Client } from '@stomp/stompjs'
@@ -167,6 +150,18 @@ interface User {
   updatedAt?: string
 }
 
+interface FriendMessage {
+  type: string;
+  friendshipId?: number;
+  userId?: number;
+  username?: string;
+  userPicture?: string;
+  friendId?: number;
+  friendUsername?: string;
+  friendPicture?: string;
+  timestamp: number;
+}
+
 interface Player {
   userId: number
   username: string
@@ -182,7 +177,7 @@ interface GameNotification {
 
 export default {
   name: 'GameLobby',
-  components: { ChatBox },
+  components: { ChatBox, FriendsTab },
   setup() {
     const router = useRouter()
     return { router }
@@ -312,7 +307,6 @@ export default {
         onConnect: () => {
           console.log('Game WebSocket connection established')
 
-          // Join the lobby
           this.stompClient?.publish({
             destination: '/app/game/join-lobby',
             body: JSON.stringify({
@@ -320,7 +314,6 @@ export default {
             }),
           })
 
-          // Subscribe to lobby updates
           this.stompClient?.subscribe('/topic/lobby', (message) => {
             try {
               this.players = JSON.parse(message.body)
@@ -329,13 +322,21 @@ export default {
             }
           })
 
-          // Subscribe to personal game messages
           this.stompClient?.subscribe(`/user/${this.user?.id}/queue/game`, (message) => {
             try {
               const gameMessage = JSON.parse(message.body)
               this.handleGameMessage(gameMessage)
             } catch (e) {
               console.error('Error processing game message:', e)
+            }
+          })
+
+          this.stompClient?.subscribe(`/user/${this.user?.id}/queue/friend`, (message) => {
+            try {
+              const friendMessage = JSON.parse(message.body)
+              this.handleFriendMessage(friendMessage)
+            } catch (e) {
+              console.error('Error processing friend message:', e)
             }
           })
         },
@@ -365,7 +366,6 @@ export default {
         }),
       })
 
-      // Set a timeout to stop searching after 15 seconds
       if (this.matchmakingTimer) {
         clearTimeout(this.matchmakingTimer)
       }
@@ -396,6 +396,28 @@ export default {
       })
 
       this.showNotification('info', `Challenge sent to ${player.username}. Waiting for response...`)
+    },
+    challengeFriend(friend: any) {
+      if (!this.stompClient?.connected || !this.user?.id) return
+
+      this.challengingSomeone = true
+
+      const targetPlayer = {
+        userId: friend.id,
+        username: friend.username,
+        picture: friend.picture,
+        elo: friend.elo || 0
+      }
+
+      this.stompClient.publish({
+        destination: '/app/game/challenge-player',
+        body: JSON.stringify({
+          userId: this.user.id,
+          targetId: friend.id,
+        }),
+      })
+
+      this.showNotification('info', `Challenge sent to ${friend.username}. Waiting for response...`)
     },
     async acceptChallenge() {
       if (!this.stompClient?.connected || !this.user?.id) {
@@ -524,15 +546,6 @@ export default {
         }, 5000)
       }
     },
-    toggleInviteModal() {
-      this.showInviteModal = !this.showInviteModal
-      this.linkCopied = false
-
-      if (this.showInviteModal) {
-        const baseUrl = window.location.origin
-        this.inviteLink = `${baseUrl}/invite?user=${this.user?.username || 'friend'}`
-      }
-    },
     copyInviteLink() {
       navigator.clipboard
         .writeText(this.inviteLink)
@@ -543,27 +556,71 @@ export default {
           console.error('Failed to copy link:', err)
         })
     },
+    handleFriendMessage(message: FriendMessage) {
+      switch (message.type) {
+        case 'FRIEND_REQUEST':
+          this.showNotification('info', `<strong>${message.username}</strong> sent you a friend request. Check the Friends tab.`);
+          break;
+        case 'FRIEND_REQUEST_ACCEPTED':
+        case 'FRIEND_ADDED':
+          this.showNotification('info', `<strong>${message.friendUsername}</strong> is now your friend.`);
+          break;
+        case 'FRIEND_REMOVED':
+          this.showNotification('info', `<strong>${message.username}</strong> has removed you from their friends list.`);
+          break;
+      }
+    },
+    cleanupOnExit() {
+      if (this.transitioningToGame || this.preserveSocket) {
+        return
+      }
+
+      if (this.matchmakingTimer) {
+        clearTimeout(this.matchmakingTimer)
+      }
+
+      if (this.stompClient && this.user?.id) {
+        try {
+          if (this.stompClient.connected) {
+            console.log('Cleaning up WebSocket connection...')
+
+            if (this.findingOpponent) {
+              this.stompClient.publish({
+                destination: '/app/game/stop-searching',
+                body: JSON.stringify({
+                  userId: this.user.id,
+                }),
+              })
+            }
+
+            this.stompClient.publish({
+              destination: '/app/game/leave-lobby',
+              body: JSON.stringify({
+                userId: this.user.id,
+              }),
+            })
+          }
+
+          this.stompClient.deactivate()
+        } catch (error) {
+          console.error('Error during WebSocket cleanup:', error)
+          if (this.stompClient) {
+            this.stompClient.deactivate()
+          }
+        }
+      }
+    },
   },
   created() {
     this.loadUserData()
     this.inviteLink = `${window.location.origin}/invite`
+
+    window.addEventListener('beforeunload', () => {
+      this.cleanupOnExit()
+    })
   },
   beforeUnmount() {
-    if (this.stompClient && !this.preserveSocket) {
-      if (this.user?.id) {
-        this.stompClient.publish({
-          destination: '/app/game/leave-lobby',
-          body: JSON.stringify({
-            userId: this.user.id,
-          }),
-        })
-      }
-      this.stompClient.deactivate()
-    }
-
-    if (this.matchmakingTimer) {
-      clearTimeout(this.matchmakingTimer)
-    }
+    this.cleanupOnExit()
   },
 }
 </script>

@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -70,12 +71,18 @@ public class UserService {
      */
     public Page<User> getGlobalRankings(Pageable pageable) {
         return userRepository.findAllByOrderByEloDesc(pageable);
-    }
-
-    /**
+    }    /**
      * Get local rankings by country ordered by ELO
      */
     public Page<User> getLocalRankings(String country, Pageable pageable) {
         return userRepository.findByCountryOrderByEloDesc(country, pageable);
+    }
+    
+    /**
+     * Search users by username (partial match)
+     */
+    public List<User> searchUsersByUsername(String query) {
+        String searchTerm = "%" + query.toLowerCase() + "%";
+        return userRepository.findByUsernameContainingIgnoreCase(searchTerm);
     }
 }
