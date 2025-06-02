@@ -340,7 +340,6 @@ export default {
         onConnect: () => {
           console.log('Game WebSocket connection established')
 
-          // Join the lobby
           this.stompClient?.publish({
             destination: '/app/game/join-lobby',
             body: JSON.stringify({
@@ -348,7 +347,6 @@ export default {
             }),
           })
 
-          // Subscribe to lobby updates
           this.stompClient?.subscribe('/topic/lobby', (message) => {
             try {
               this.players = JSON.parse(message.body)
@@ -357,7 +355,6 @@ export default {
             }
           })
 
-          // Subscribe to personal game messages
           this.stompClient?.subscribe(`/user/${this.user?.id}/queue/game`, (message) => {
             try {
               const gameMessage = JSON.parse(message.body)
@@ -367,7 +364,6 @@ export default {
             }
           })
 
-          // Subscribe to friend notifications
           this.stompClient?.subscribe(`/user/${this.user?.id}/queue/friend`, (message) => {
             try {
               const friendMessage = JSON.parse(message.body)
@@ -403,7 +399,6 @@ export default {
         }),
       })
 
-      // Set a timeout to stop searching after 15 seconds
       if (this.matchmakingTimer) {
         clearTimeout(this.matchmakingTimer)
       }
@@ -440,7 +435,6 @@ export default {
 
       this.challengingSomeone = true
 
-      // Convert friend object to player format expected by the backend
       const targetPlayer = {
         userId: friend.id,
         username: friend.username,
@@ -619,23 +613,19 @@ export default {
       }
     },
     cleanupOnExit() {
-      // Only cleanup if we're not transitioning to a game
       if (this.transitioningToGame || this.preserveSocket) {
         return
       }
 
-      // Clear any active timers
       if (this.matchmakingTimer) {
         clearTimeout(this.matchmakingTimer)
       }
 
-      // Clean up WebSocket connection
       if (this.stompClient && this.user?.id) {
         try {
           if (this.stompClient.connected) {
             console.log('Cleaning up WebSocket connection...')
 
-            // If we were searching for an opponent, stop the search
             if (this.findingOpponent) {
               this.stompClient.publish({
                 destination: '/app/game/stop-searching',
@@ -645,7 +635,6 @@ export default {
               })
             }
 
-            // Notify the server that we're leaving the lobby
             this.stompClient.publish({
               destination: '/app/game/leave-lobby',
               body: JSON.stringify({
@@ -654,11 +643,9 @@ export default {
             })
           }
 
-          // Disconnect WebSocket
           this.stompClient.deactivate()
         } catch (error) {
           console.error('Error during WebSocket cleanup:', error)
-          // Force disconnect even if there was an error
           if (this.stompClient) {
             this.stompClient.deactivate()
           }
@@ -670,7 +657,6 @@ export default {
     this.loadUserData()
     this.inviteLink = `${window.location.origin}/invite`
 
-    // Add beforeunload listener for cleanup when page is closed/refreshed
     window.addEventListener('beforeunload', () => {
       this.cleanupOnExit()
     })
