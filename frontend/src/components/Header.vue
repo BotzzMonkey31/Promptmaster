@@ -14,9 +14,9 @@
           <a href="/vs" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">VS</a>
         </li>
         <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Ranking</a
-          >
+          <router-link to="/ranking" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">
+            Ranking
+          </router-link>
         </li>
         <li>
           <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"

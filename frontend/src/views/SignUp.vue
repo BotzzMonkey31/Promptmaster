@@ -45,7 +45,7 @@ onMounted(async () => {
 
     const response = await apiClient.get(`/users/check/${parsedUserData.email}`)
 
-    if (response.data.exists) {
+    if (response.data) {
       router.push('/')
     }
 

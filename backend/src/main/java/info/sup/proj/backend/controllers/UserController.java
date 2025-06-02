@@ -8,6 +8,9 @@ import info.sup.proj.backend.dto.ApiResponse;
 import info.sup.proj.backend.dto.UpdateEloRequestDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +32,7 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
-    
+
     @GetMapping("/email")
     public ResponseEntity<User> getUserByEmailParam(@RequestParam String email) {
         logger.info("Received request for email: {}", email);
@@ -55,8 +58,7 @@ public class UserController {
                 .body(new ApiResponse<>(false, "User already exists"));
         }
     }
-    
-    /**
+      /**
      * Update a user's ELO score by adding the puzzle completion score
      */
     @PostMapping("/update-elo")
@@ -72,5 +74,47 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(false, "Failed to update ELO: " + e.getMessage()));
         }
+    }
+
+    /**
+     * Get global rankings with pagination
+     */
+    @GetMapping("/rankings/global")
+    public ResponseEntity<Page<User>> getGlobalRankings(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<User> rankings = userService.getGlobalRankings(pageable);
+            return ResponseEntity.ok(rankings);
+        } catch (Exception e) {
+            logger.error("Error fetching global rankings", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get local rankings (by country) with pagination
+     */
+    @GetMapping("/rankings/local")
+    public ResponseEntity<Page<User>> getLocalRankings(
+            @RequestParam String country,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<User> rankings = userService.getLocalRankings(country, pageable);
+            return ResponseEntity.ok(rankings);
+        } catch (Exception e) {
+            logger.error("Error fetching local rankings for country: {}", country, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        return userService.getUserById(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }
