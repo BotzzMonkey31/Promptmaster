@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/users")
@@ -24,6 +25,18 @@ public class UserController {
 
     public UserController(UserService userService){
         this.userService = userService;
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<List<User>>> searchUsers(@RequestParam String query) {
+        try {
+            List<User> users = userService.searchUsersByUsername(query);
+            return ResponseEntity.ok(new ApiResponse<>(true, "Users found", users));
+        } catch (Exception e) {
+            logger.error("Error searching users", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(false, "Error searching users"));
+        }
     }
 
     @GetMapping("/email/{email}")

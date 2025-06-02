@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -20,4 +22,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     
     @Query("SELECT u FROM User u WHERE u.country = :country ORDER BY u.elo DESC")
     Page<User> findByCountryOrderByEloDesc(@Param("country") String country, Pageable pageable);
+    
+    @Query("SELECT u FROM User u WHERE LOWER(u.username) LIKE :username")
+    List<User> findByUsernameContainingIgnoreCase(@Param("username") String username);
 }
