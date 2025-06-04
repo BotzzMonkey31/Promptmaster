@@ -6,7 +6,8 @@
         <div
           v-for="puzzle in puzzles"
           :key="puzzle.title"
-          class="bg-white p-6 shadow rounded-lg flex flex-col hover:shadow-xl transition-shadow duration-300"
+          @click="handlePuzzleClick(puzzle.title)"
+          class="bg-white p-6 shadow rounded-lg flex flex-col hover:shadow-xl transition-shadow duration-300 cursor-pointer"
         >
           <div class="h-48 overflow-hidden rounded-lg mb-4">
             <img
@@ -131,6 +132,17 @@ export default {
     getMedal(index: number): string {
       const medals = ['🥇', '🥈', '🥉']
       return medals[index]
+    },
+    handlePuzzleClick(puzzleTitle: string) {
+      if (puzzleTitle === 'VS Mode') {
+        this.$router.push('/vs')
+      } else {
+        // Route to PuzzleOverview with filter applied
+        this.$router.push({
+          path: '/puzzle',
+          query: { type: puzzleTitle }
+        })
+      }
     },
     async fetchGlobalRankings() {
       this.loading = true

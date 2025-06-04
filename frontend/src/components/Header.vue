@@ -1,43 +1,51 @@
 <template>
-  <header class="bg-white shadow p-4 flex justify-between items-center relative">
-    <router-link to="/" class="no-underline">
-      <h1 class="text-xl font-semibold text-black">Promptmaster</h1>
-    </router-link>
-    <nav>
-      <ul class="flex space-x-2 list-none p-0">
-        <li>
-          <a href="/puzzle" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Puzzles</a
-          >
-        </li>
-        <li>
-          <a href="/vs" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">VS</a>
-        </li>
-        <li>
-          <router-link to="/ranking" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">
-            Ranking
-          </router-link>
-        </li>
-        <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Community</a
-          >
-        </li>
-        <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Contact</a
-          >
-        </li>
-        <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">About</a>
-        </li>
-      </ul>
-    </nav>
-    <div class="flex space-x-4 items-center relative">
-      <i class="fas fa-bell text-gray-600"></i>
-      <i class="fas fa-cog text-gray-600"></i>
+  <header class="bg-white shadow p-4">
+    <div class="flex items-center w-full">
+      <div class="w-40 flex justify-start">
+        <router-link
+          to="/"
+          class="no-underline transition-colors duration-200"
+        >
+          <h1 class="text-xl font-semibold" :class="{ 'text-black ___': $route.path === '/', 'text-black': $route.path !== '/' }">
+            Promptmaster
+          </h1>
+        </router-link>
+      </div>
+      <nav class="flex-1 flex justify-center">
+        <ul class="flex space-x-2 list-none p-0">
+          <li>
+            <router-link
+              to="/puzzle"
+              class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl transition-colors duration-200"
+              :class="{ 'bg-blue-100 text-blue-700 font-semibold': $route.path.startsWith('/puzzle') }"
+            >
+              Puzzles
+            </router-link>
+          </li>
+          <li>
+            <router-link
+              to="/vs"
+              class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl transition-colors duration-200"
+              :class="{ 'bg-blue-100 text-blue-700 font-semibold': $route.path.startsWith('/vs') }"
+            >
+              VS
+            </router-link>
+          </li>
+          <li>
+            <router-link
+              to="/ranking"
+              class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl transition-colors duration-200"
+              :class="{ 'bg-blue-100 text-blue-700 font-semibold': $route.path.startsWith('/ranking') }"
+            >
+              Ranking
+            </router-link>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="w-40 flex justify-end">
       <div class="relative">
-        <i class="fas fa-user-circle text-gray-600 cursor-pointer" @click="toggleDropdown"></i>
+        <i class="fas fa-user-circle text-gray-600 cursor-pointer text-2xl hover:text-blue-600 transition-colors duration-200" @click="toggleDropdown"></i>
         <div
           v-if="dropdownOpen"
           class="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-md p-2"
@@ -61,6 +69,7 @@
         </div>
       </div>
     </div>
+  </div>
   </header>
 </template>
 
