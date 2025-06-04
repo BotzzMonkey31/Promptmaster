@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-10xl mx-auto p-6 bg-white rounded-2xl shadow-xl">
+  <div class="max-w-10xl mx-auto p-6 bg-white rounded-2xl shadow-xl m-2">
     <h1 class="text-4xl font-bold text-gray-800 mb-6 text-center">Available Puzzles</h1>
     <p class="text-gray-500 text-center mb-6">
       Select a puzzle below and challenge yourself with AI-powered solutions!
@@ -201,7 +201,7 @@ export default {
   },
   mounted() {
     this.fetchPuzzles()
-    
+
     // Check for query parameters to set initial filter
     const queryType = this.$route.query.type as string
     if (queryType) {
