@@ -201,6 +201,13 @@ export default {
   },
   mounted() {
     this.fetchPuzzles()
+    
+    // Check for query parameters to set initial filter
+    const queryType = this.$route.query.type as string
+    if (queryType) {
+      // Map the type from Home.vue to the internal values used in PuzzleOverview
+      this.selectedType = queryType
+    }
   },
 }
 </script>
