@@ -44,8 +44,8 @@
         :class="['ranking-item', { 'current-user': user.id === currentUserId }]"
       >
         <span class="rank-col">
-          <span v-if="index < 3" class="medal">{{ getMedal(index) }}</span>
-          <span v-else>{{ index + 1 }}</span>
+          <span v-if="getGlobalPosition(index) <= 3" class="medal">{{ getMedal(getGlobalPosition(index) - 1) }}</span>
+          <span v-else>{{ getGlobalPosition(index) }}</span>
         </span>
         <span class="user-col">
           <div class="user-info">
@@ -78,7 +78,7 @@
       >
         Previous
       </button>
-      <span class="page-info">Page {{ currentPage + 1 }} of {{ totalPages }}</span>
+      <span class="page-info">{{ currentPage + 1 }} of {{ totalPages }}</span>
       <button
         @click="currentPage = Math.min(totalPages - 1, currentPage + 1)"
         :disabled="currentPage === totalPages - 1"
@@ -227,7 +227,7 @@ const fetchRankings = async () => {
 
     const params: any = {
       page: currentPage.value,
-      size: 50
+      size: 5
     }
 
     // For local rankings, we need a country parameter
@@ -263,6 +263,10 @@ const getMedal = (index: number): string => {
   return medals[index]
 }
 
+const getGlobalPosition = (pageIndex: number): number => {
+  return (currentPage.value * 6) + pageIndex + 1
+}
+
 // Watch for tab changes and reset page
 watch(activeTab, () => {
   currentPage.value = 0
@@ -285,7 +289,7 @@ onMounted(async () => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
-  min-height: 100vh;
+  min-height: 74vh;
 }
 
 .page-title {
