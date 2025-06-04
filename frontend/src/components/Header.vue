@@ -1,35 +1,42 @@
 <template>
   <header class="bg-white shadow p-4 flex justify-between items-center relative">
-    <router-link to="/" class="no-underline">
-      <h1 class="text-xl font-semibold text-black">Promptmaster</h1>
+    <router-link
+      to="/"
+      class="no-underline transition-colors duration-200"
+      :class="{ 'text-blue-700': $route.path === '/' }"
+    >
+      <h1 class="text-xl font-semibold" :class="{ 'text-blue-700': $route.path === '/', 'text-black': $route.path !== '/' }">
+        Promptmaster
+      </h1>
     </router-link>
     <nav>
       <ul class="flex space-x-2 list-none p-0">
         <li>
-          <a href="/puzzle" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Puzzles</a
+          <router-link
+            to="/puzzle"
+            class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl transition-colors duration-200"
+            :class="{ 'bg-blue-100 text-blue-700 font-semibold': $route.path.startsWith('/puzzle') }"
           >
-        </li>
-        <li>
-          <a href="/vs" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">VS</a>
-        </li>
-        <li>
-          <router-link to="/ranking" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">
-            Ranking
+            Puzzles
           </router-link>
         </li>
         <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Community</a
+          <router-link
+            to="/vs"
+            class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl transition-colors duration-200"
+            :class="{ 'bg-blue-100 text-blue-700 font-semibold': $route.path.startsWith('/vs') }"
           >
+            VS
+          </router-link>
         </li>
         <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl"
-            >Contact</a
+          <router-link
+            to="/ranking"
+            class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl transition-colors duration-200"
+            :class="{ 'bg-blue-100 text-blue-700 font-semibold': $route.path.startsWith('/ranking') }"
           >
-        </li>
-        <li>
-          <a href="#" class="text-gray-600 no-underline hover:bg-gray-200 p-4 rounded-xl">About</a>
+            Ranking
+          </router-link>
         </li>
       </ul>
     </nav>
