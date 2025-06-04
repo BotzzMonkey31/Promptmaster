@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class FriendshipService {
@@ -19,6 +18,11 @@ public class FriendshipService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private static final Logger logger = LoggerFactory.getLogger(FriendshipService.class);
+
+    public static final String USERNF = "User not found";
+    public static final String TIMES = "timestamp";
+    public static final String QUEUEF = "/queue/friend";
+
 
     public FriendshipService(FriendshipRepository friendshipRepository, UserRepository userRepository, SimpMessagingTemplate messagingTemplate) {
         this.friendshipRepository = friendshipRepository;
@@ -33,7 +37,7 @@ public class FriendshipService {
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
         User friend = userRepository.findById(friendId)
                 .orElseThrow(() -> new IllegalArgumentException("Friend not found"));
 
@@ -89,7 +93,7 @@ public class FriendshipService {
     }    @Transactional
     public void removeFriend(Long userId, Long friendId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
         User friend = userRepository.findById(friendId)
                 .orElseThrow(() -> new IllegalArgumentException("Friend not found"));
 
@@ -119,11 +123,11 @@ public class FriendshipService {
                 notification.put("type", "FRIEND_REMOVED");
                 notification.put("userId", initiator.getId());
                 notification.put("username", initiator.getUsername());
-                notification.put("timestamp", System.currentTimeMillis());
+                notification.put(TIMES, System.currentTimeMillis());
                 
                 messagingTemplate.convertAndSendToUser(
                     friend.getId().toString(),
-                    "/queue/friend",
+                    QUEUEF,
                     notification
                 );
                 
@@ -137,34 +141,34 @@ public class FriendshipService {
 
     public List<User> getFriends(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
 
         List<Friendship> friendships = friendshipRepository.findAcceptedFriendships(user);
         
         return friendships.stream()
                 .map(f -> f.getUser().getId().equals(userId) ? f.getFriend() : f.getUser())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<Friendship> getPendingFriendRequests(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
 
         return friendshipRepository.findPendingFriendRequestsReceived(user);
     }
 
     public List<Friendship> getSentFriendRequests(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
 
         return friendshipRepository.findPendingFriendRequestsSent(user);
     }
       public boolean areFriends(Long userId1, Long userId2) {
         User user1 = userRepository.findById(userId1)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
         // Verify user2 exists but we don't need the variable
         userRepository.findById(userId2)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USERNF));
                 
         List<Friendship> friendships = friendshipRepository.findAcceptedFriendships(user1);
         
@@ -185,11 +189,11 @@ public class FriendshipService {
             notification.put("userId", friendship.getUser().getId());
             notification.put("username", friendship.getUser().getUsername());
             notification.put("userPicture", friendship.getUser().getPicture());
-            notification.put("timestamp", System.currentTimeMillis());
+            notification.put(TIMES, System.currentTimeMillis());
 
             messagingTemplate.convertAndSendToUser(
                 friendship.getFriend().getId().toString(),
-                "/queue/friend",
+                QUEUEF,
                 notification
             );
             
@@ -213,11 +217,11 @@ public class FriendshipService {
             requesterNotification.put("friendId", friendship.getFriend().getId());
             requesterNotification.put("friendUsername", friendship.getFriend().getUsername());
             requesterNotification.put("friendPicture", friendship.getFriend().getPicture());
-            requesterNotification.put("timestamp", System.currentTimeMillis());
+            requesterNotification.put(TIMES, System.currentTimeMillis());
 
             messagingTemplate.convertAndSendToUser(
                 friendship.getUser().getId().toString(),
-                "/queue/friend",
+                QUEUEF,
                 requesterNotification
             );
             
@@ -227,11 +231,11 @@ public class FriendshipService {
             recipientNotification.put("friendId", friendship.getUser().getId());
             recipientNotification.put("friendUsername", friendship.getUser().getUsername());
             recipientNotification.put("friendPicture", friendship.getUser().getPicture());
-            recipientNotification.put("timestamp", System.currentTimeMillis());
+            recipientNotification.put(TIMES, System.currentTimeMillis());
             
             messagingTemplate.convertAndSendToUser(
                 friendship.getFriend().getId().toString(),
-                "/queue/friend",
+                QUEUEF,
                 recipientNotification
             );
             

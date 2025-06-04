@@ -24,10 +24,12 @@ public class FriendshipController {
         this.friendshipService = friendshipService;
     }
 
+    public static final String USERID = "userId";
+
     @PostMapping("/request")
     public ResponseEntity<ApiResponse<Friendship>> sendFriendRequest(@RequestBody Map<String, Long> request) {
         try {
-            Long userId = request.get("userId");
+            Long userId = request.get(USERID);
             Long friendId = request.get("friendId");
             
             if (userId == null || friendId == null) {
@@ -57,7 +59,7 @@ public class FriendshipController {
             @PathVariable Long friendshipId,
             @RequestBody Map<String, Long> request) {
         try {
-            Long userId = request.get("userId");
+            Long userId = request.get(USERID);
             
             if (userId == null) {
                 return ResponseEntity.badRequest().body(
@@ -86,7 +88,7 @@ public class FriendshipController {
             @PathVariable Long friendshipId,
             @RequestBody Map<String, Long> request) {
         try {
-            Long userId = request.get("userId");
+            Long userId = request.get(USERID);
             
             if (userId == null) {
                 return ResponseEntity.badRequest().body(

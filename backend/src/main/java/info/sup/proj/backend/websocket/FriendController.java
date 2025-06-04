@@ -16,9 +16,11 @@ public class FriendController {
         this.friendshipService = friendshipService;
     }
 
+    public static final String USERID = "userId";
+
     @MessageMapping("/friend/request")
     public void sendFriendRequest(@Payload Map<String, Object> message) {
-        Long userId = Long.parseLong(message.get("userId").toString());
+        Long userId = Long.parseLong(message.get(USERID).toString());
         Long friendId = Long.parseLong(message.get("friendId").toString());
         
         friendshipService.sendFriendRequest(userId, friendId);
@@ -26,7 +28,7 @@ public class FriendController {
 
     @MessageMapping("/friend/accept")
     public void acceptFriendRequest(@Payload Map<String, Object> message) {
-        Long userId = Long.parseLong(message.get("userId").toString());
+        Long userId = Long.parseLong(message.get(USERID).toString());
         Long friendshipId = Long.parseLong(message.get("friendshipId").toString());
         
         friendshipService.acceptFriendRequest(friendshipId, userId);
@@ -34,7 +36,7 @@ public class FriendController {
 
     @MessageMapping("/friend/decline")
     public void declineFriendRequest(@Payload Map<String, Object> message) {
-        Long userId = Long.parseLong(message.get("userId").toString());
+        Long userId = Long.parseLong(message.get(USERID).toString());
         Long friendshipId = Long.parseLong(message.get("friendshipId").toString());
         
         friendshipService.declineFriendRequest(friendshipId, userId);
@@ -42,7 +44,7 @@ public class FriendController {
 
     @MessageMapping("/friend/remove")
     public void removeFriend(@Payload Map<String, Object> message) {
-        Long userId = Long.parseLong(message.get("userId").toString());
+        Long userId = Long.parseLong(message.get(USERID).toString());
         Long friendId = Long.parseLong(message.get("friendId").toString());
         
         friendshipService.removeFriend(userId, friendId);

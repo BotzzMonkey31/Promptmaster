@@ -9,6 +9,7 @@ import java.util.Map;
 @Controller
 public class MatchmakingController {
     private final MatchmakingService matchmakingService;
+    public static final String USERID = "userId";
 
     public MatchmakingController(MatchmakingService matchmakingService) {
         this.matchmakingService = matchmakingService;
@@ -16,19 +17,19 @@ public class MatchmakingController {
 
     @MessageMapping("/game/join-lobby")
     public void joinLobby(@Payload Map<String, Object> message) {
-        Long userId = ((Number) message.get("userId")).longValue();
+        Long userId = ((Number) message.get(USERID)).longValue();
         matchmakingService.addPlayerToLobby(userId);
     }
 
     @MessageMapping("/game/leave-lobby")
     public void leaveLobby(@Payload Map<String, Object> message) {
-        String userId = message.get("userId").toString();
+        String userId = message.get(USERID).toString();
         matchmakingService.removePlayerFromLobby(userId);
     }
 
     @MessageMapping("/game/find-opponent")
     public void findOpponent(@Payload Map<String, Object> message) {
-        String userId = message.get("userId").toString();
+        String userId = message.get(USERID).toString();
         @SuppressWarnings("unchecked")
         Map<String, Object> preferences = (Map<String, Object>) message.get("preferences");
         matchmakingService.startSearchingForOpponent(userId, preferences);
@@ -36,26 +37,26 @@ public class MatchmakingController {
 
     @MessageMapping("/game/stop-searching")
     public void stopSearching(@Payload Map<String, Object> message) {
-        String userId = message.get("userId").toString();
+        String userId = message.get(USERID).toString();
         matchmakingService.stopSearchingForOpponent(userId);
     }
 
     @MessageMapping("/game/challenge-player")
     public void challengePlayer(@Payload Map<String, Object> message) {
-        String userId = message.get("userId").toString();
+        String userId = message.get(USERID).toString();
         String targetId = message.get("targetId").toString();
         matchmakingService.challengePlayer(userId, targetId);
     }
 
     @MessageMapping("/game/accept-challenge")
     public void acceptChallenge(@Payload Map<String, Object> message) {
-        String userId = message.get("userId").toString();
+        String userId = message.get(USERID).toString();
         matchmakingService.acceptChallenge(userId);
     }
 
     @MessageMapping("/game/reject-challenge")
     public void rejectChallenge(@Payload Map<String, Object> message) {
-        String userId = message.get("userId").toString();
+        String userId = message.get(USERID).toString();
         matchmakingService.rejectChallenge(userId);
     }
 } 

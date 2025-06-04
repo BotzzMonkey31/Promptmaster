@@ -8,7 +8,6 @@ import info.sup.proj.backend.repositories.PuzzleRepository;
 import info.sup.proj.backend.events.GameStateChangeEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import info.sup.proj.backend.model.User;
 import info.sup.proj.backend.repositories.UserRepository;
 
